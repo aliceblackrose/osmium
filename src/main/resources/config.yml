@@ -1,0 +1,18 @@
+namespace: osmium
+base-item: PAPER
+custom-model-data-start: 100000
+pack-format: 84
+blueprints-folder: blueprints
+models-folder: models
+resource-pack-folder: resource_pack
+auto-generate-pack-on-reload: true
+render:
+  interpolation-duration: 1
+  teleport-duration: 1
+  view-range: 64.0
+  shadow-radius: 0.0
+  shadow-strength: 0.0
+  brightness-block: 15
+  brightness-sky: 15
+  scale: 1.0
+  ground-align: true

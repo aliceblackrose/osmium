@@ -1,0 +1,14 @@
+name: Osmium
+version: ${version}
+main: osmium.OsmiumPlugin
+api-version: '26.1'
+author: CybelleReaper
+load: POSTWORLD
+description: Clean-room ModelEngine-style Blockbench renderer (Osmium).
+commands:
+  om:
+    description: Osmium commands.
+    usage: /om <reload|pack|list|spawn|spawnmob|play|remove|debug>
+permissions:
+  osmium.admin:
+    default: op
