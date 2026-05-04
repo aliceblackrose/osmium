@@ -18,8 +18,8 @@ It loads `.bbmodel` files, converts model parts into resource-pack item models, 
 
 ## Requirements
 
-- Java 21
-- Paper 1.21.x
+- Java 25
+- Paper 26.1
 - Gradle wrapper included for building from source
 
 ## Installation
@@ -74,7 +74,7 @@ Default config:
 namespace: osmium
 base-item: PAPER
 custom-model-data-start: 100000
-pack-format: 64
+pack-format: 84
 
 blueprints-folder: blueprints
 models-folder: models
