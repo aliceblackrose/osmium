@@ -1,5 +1,8 @@
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     java
+    `maven-publish`
 
     id("com.diffplug.spotless") version "8.4.0"
     id("net.ltgt.errorprone") version "5.1.0"
@@ -12,12 +15,25 @@ val pluginVersion = version.toString()
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    withSourcesJar()
+    withJavadocJar()
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:26.1.2.build.+")
 
     errorprone("com.google.errorprone:error_prone_core:2.49.0")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+            groupId = providers.environmentVariable("GROUP").getOrElse(project.group.toString())
+            artifactId = providers.environmentVariable("ARTIFACT").getOrElse(project.name.lowercase())
+            version = providers.environmentVariable("VERSION").getOrElse(project.version.toString())
+        }
+    }
 }
 
 spotless {
