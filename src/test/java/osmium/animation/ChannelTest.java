@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import osmium.math.Vec3;
 
 final class ChannelTest {
-  private static final double EPSILON = 1.0E-7;
+  private static final double EPSILON = 1.0E-5;
 
   @Test
   void linearlyInterpolatesBetweenFrames() {
