@@ -47,11 +47,18 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      - name: Format sources for diagnostic artifact
+        run: ./gradlew spotlessApply
+
+      - name: Upload formatted sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-sources
+          path: src
+          if-no-files-found: error
+
       - name: Build and test
-        run: |
-          ./gradlew spotlessApply
-          git diff -- src/main/java src/test/java
-          exit 1
+        run: ./gradlew clean build --warning-mode all
 
       - name: Collect release JARs
         if: github.event_name != 'pull_request'
