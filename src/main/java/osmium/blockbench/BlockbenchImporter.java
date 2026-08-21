@@ -567,7 +567,16 @@ public final class BlockbenchImporter {
         Interpolation.parse(Jsons.string(keyframeJson, "interpolation", "linear"));
     Vec3 start = keyframePoint(keyframeJson, channel, 0);
     Vec3 end = keyframePoint(keyframeJson, channel, 1);
-    Keyframe keyframe = new Keyframe(time, start, end == null ? start : end, interpolation);
+    Keyframe keyframe =
+        new Keyframe(
+            time,
+            start,
+            end == null ? start : end,
+            interpolation,
+            Vec3.fromArray(keyframeJson.get("bezier_left_time")),
+            Vec3.fromArray(keyframeJson.get("bezier_right_time")),
+            Vec3.fromArray(keyframeJson.get("bezier_left_value")),
+            Vec3.fromArray(keyframeJson.get("bezier_right_value")));
 
     switch (channel) {
       case "position", "translation", "move" -> timeline.position().add(keyframe);
