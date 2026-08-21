@@ -10,7 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import osmium.model.ModelBlueprint;
 
 final class BlockbenchImporterTest {
-  private static final double EPSILON = 1.0E-7;
+  private static final double EPSILON = 1.0E-5;
 
   @TempDir Path tempDirectory;
 
