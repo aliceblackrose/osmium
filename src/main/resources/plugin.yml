@@ -12,3 +12,6 @@ commands:
 permissions:
   osmium.admin:
     default: op
+  modelenginelike.admin:
+    description: Legacy Osmium administrator permission alias.
+    default: op
