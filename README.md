@@ -101,6 +101,7 @@ render:
 | `namespace` | Namespace used for generated assets |
 | `base-item` | Minecraft item used as the model carrier |
 | `custom-model-data-start` | First custom model data value assigned to generated model parts |
+| `pack-format` | Resource-pack format written to `pack.mcmeta` |
 | `blueprints-folder` | Folder scanned for `.bbmodel` files |
 | `models-folder` | Additional folder scanned for `.bbmodel` files |
 | `resource-pack-folder` | Folder where generated resource pack files are written |
@@ -212,7 +213,7 @@ gradlew.bat clean build
 
 Osmium uses:
 
-- Java 21
+- Java 25
 - Gradle Kotlin DSL
 - Paper API
 - Bukkit display entities
@@ -238,4 +239,4 @@ Osmium is in active development. Expect changes to model loading, resource-pack 
 
 ## License
 
-No license has been specified yet.
+Osmium is licensed under the GNU General Public License v3.0 (GPL-3.0). See [`LICENSE`](LICENSE) for the full license text.
