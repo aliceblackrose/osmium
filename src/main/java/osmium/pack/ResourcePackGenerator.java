@@ -83,12 +83,14 @@ public final class ResourcePackGenerator {
   private static final int HASH_PREFIX_LENGTH = 12;
   private static final int ROUNDING_SCALE = 1_000_000;
   private static final int RESOURCE_PACK_FORMAT_26_1 = 84;
+  private static final long DETERMINISTIC_ZIP_TIMESTAMP_MILLIS = 315_532_800_000L;
 
   private final Logger logger;
   private final Path outputFolder;
   private final String namespace;
   private final int customModelDataStart;
   private final Material baseItem;
+  private final int packFormat;
 
   public ResourcePackGenerator(
       Logger logger,
@@ -96,11 +98,28 @@ public final class ResourcePackGenerator {
       String namespace,
       int customModelDataStart,
       Material baseItem) {
+    this(
+        logger,
+        outputFolder,
+        namespace,
+        customModelDataStart,
+        baseItem,
+        RESOURCE_PACK_FORMAT_26_1);
+  }
+
+  public ResourcePackGenerator(
+      Logger logger,
+      Path outputFolder,
+      String namespace,
+      int customModelDataStart,
+      Material baseItem,
+      int packFormat) {
     this.logger = logger;
     this.outputFolder = outputFolder;
     this.namespace = namespace;
     this.customModelDataStart = customModelDataStart;
     this.baseItem = baseItem;
+    this.packFormat = Math.max(1, packFormat);
   }
 
   /** Generates the resource pack and returns the versioned zip path. */
@@ -118,11 +137,12 @@ public final class ResourcePackGenerator {
     writeLegacyBaseItemModel(overrides);
     writeModernBaseItemDefinition(overrides);
     writeManifest(models);
-    writeCacheBuster();
 
     Path zipPath = outputFolder.resolve(GENERATED_PACK_NAME);
     zip(zipPath);
-    return copyVersionedZip(zipPath);
+    Path versionedZip = copyVersionedZip(zipPath);
+    writeCacheBuster();
+    return versionedZip;
   }
 
   private static void deleteRecursively(Path path) throws IOException {
@@ -279,11 +299,11 @@ public final class ResourcePackGenerator {
     return model;
   }
 
-  private static JsonObject packRoot() {
+  private JsonObject packRoot() {
     JsonObject pack = new JsonObject();
     pack.addProperty("description", PACK_DESCRIPTION);
-    pack.addProperty("min_format", RESOURCE_PACK_FORMAT_26_1);
-    pack.addProperty("max_format", RESOURCE_PACK_FORMAT_26_1);
+    pack.addProperty("min_format", packFormat);
+    pack.addProperty("max_format", packFormat);
 
     JsonObject root = new JsonObject();
     root.add("pack", pack);
@@ -652,7 +672,6 @@ public final class ResourcePackGenerator {
 
   private void writeManifest(Collection<ModelBlueprint> models) throws IOException {
     JsonObject root = new JsonObject();
-    root.addProperty("generated_at", Instant.now().toString());
     root.addProperty("uv_mode", UV_MODE);
     root.add("models", manifestModels(models));
 
@@ -730,7 +749,9 @@ public final class ResourcePackGenerator {
           continue;
         }
 
-        zipOutputStream.putNextEntry(new ZipEntry(zipEntryName(path)));
+        ZipEntry entry = new ZipEntry(zipEntryName(path));
+        entry.setTime(DETERMINISTIC_ZIP_TIMESTAMP_MILLIS);
+        zipOutputStream.putNextEntry(entry);
         Files.copy(path, zipOutputStream);
         zipOutputStream.closeEntry();
       }
