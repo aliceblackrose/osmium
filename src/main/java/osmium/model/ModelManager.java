@@ -30,7 +30,7 @@ public final class ModelManager {
 
     Map<String, ModelBlueprint> nextModels = new LinkedHashMap<>();
     List<String> failures = new ArrayList<>();
-    BlockbenchImporter importer = new BlockbenchImporter(logger);
+    BlockbenchImporter importer = new BlockbenchImporter(logger, settings.namespace());
 
     load(importer, settings.blueprintsFolder(), nextModels, failures);
     if (!settings.modelsFolder().equals(settings.blueprintsFolder())) {
