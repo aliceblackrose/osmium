@@ -51,18 +51,18 @@ public final class OsmiumPlugin extends JavaPlugin {
     settings = PluginSettings.load(this);
     createDataFolders();
 
-    if (removeActiveModels && runtimeRegistry != null) {
-      runtimeRegistry.removeAll();
-    }
-
     try {
       modelManager.reload(settings);
 
       if (settings.autoGeneratePack()) {
         generatePack();
       }
+
+      if (removeActiveModels && runtimeRegistry != null) {
+        runtimeRegistry.removeAll();
+      }
     } catch (IOException exception) {
-      getLogger().log(Level.SEVERE, "Reload failed.", exception);
+      getLogger().log(Level.SEVERE, "Reload failed; keeping active runtime models.", exception);
     }
   }
 
@@ -72,7 +72,8 @@ public final class OsmiumPlugin extends JavaPlugin {
             settings.resourcePackFolder(),
             settings.namespace(),
             settings.customModelDataStart(),
-            settings.baseItem())
+            settings.baseItem(),
+            settings.packFormat())
         .generate(modelManager.models());
   }
 
