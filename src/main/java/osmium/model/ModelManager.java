@@ -39,7 +39,10 @@ public final class ModelManager {
 
     if (!failures.isEmpty()) {
       throw new IOException(
-          "Model reload aborted; " + failures.size() + " model(s) failed: " + String.join(", ", failures));
+          "Model reload aborted; "
+              + failures.size()
+              + " model(s) failed: "
+              + String.join(", ", failures));
     }
 
     models = Collections.unmodifiableMap(new LinkedHashMap<>(nextModels));
