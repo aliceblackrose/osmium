@@ -71,14 +71,7 @@ final class BlockbenchImporterTest {
     ModelBlueprint model = importer.importFile(modelFile);
 
     double sample =
-        model
-            .animation("curve")
-            .orElseThrow()
-            .timelines()
-            .get("root")
-            .position()
-            .sample(0.5)
-            .x();
+        model.animation("curve").orElseThrow().timelines().get("root").position().sample(0.5).x();
     assertEquals(8.75, sample, EPSILON);
   }
 }

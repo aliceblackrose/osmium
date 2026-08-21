@@ -180,8 +180,7 @@ public final class RuntimeModel {
     updateAnimationController();
     updateVisuals();
 
-    if (baseEntity == null
-        && (animationState.animation() == null || animationState.complete())) {
+    if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
       frozen = true;
     }
   }
@@ -517,10 +516,7 @@ public final class RuntimeModel {
   }
 
   private void updateHitbox(
-      RenderFrame frame,
-      RuntimeHitbox runtimeHitbox,
-      HitboxPart part,
-      Matrix4f boneTransform) {
+      RenderFrame frame, RuntimeHitbox runtimeHitbox, HitboxPart part, Matrix4f boneTransform) {
     Quaternionf cubeRotation = Transforms.staticRotation(part.cube().rotation());
     Vector3f center = partCenter(part.bone(), part.cube(), cubeRotation);
     Matrix4f transform = new Matrix4f(boneTransform).translate(center).rotate(cubeRotation);

@@ -99,12 +99,7 @@ public final class ResourcePackGenerator {
       int customModelDataStart,
       Material baseItem) {
     this(
-        logger,
-        outputFolder,
-        namespace,
-        customModelDataStart,
-        baseItem,
-        RESOURCE_PACK_FORMAT_26_1);
+        logger, outputFolder, namespace, customModelDataStart, baseItem, RESOURCE_PACK_FORMAT_26_1);
   }
 
   public ResourcePackGenerator(

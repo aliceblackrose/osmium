@@ -22,9 +22,7 @@ final class ChannelTest {
   @Test
   void stepInterpolationHoldsPreviousPostValue() {
     Channel channel = new Channel(Vec3.ZERO);
-    channel.add(
-        new Keyframe(
-            0.0, new Vec3(1, 2, 3), new Vec3(4, 5, 6), Interpolation.STEP));
+    channel.add(new Keyframe(0.0, new Vec3(1, 2, 3), new Vec3(4, 5, 6), Interpolation.STEP));
     channel.add(new Keyframe(1.0, new Vec3(10, 20, 30), Interpolation.LINEAR));
 
     assertVec3(new Vec3(4, 5, 6), channel.sample(0.75));
