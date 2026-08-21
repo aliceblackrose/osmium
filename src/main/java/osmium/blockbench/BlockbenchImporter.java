@@ -42,9 +42,15 @@ public final class BlockbenchImporter {
   private static final String[] DIRECTIONS = {"north", "east", "south", "west", "up", "down"};
 
   private final Logger logger;
+  private final String namespace;
 
   public BlockbenchImporter(Logger logger) {
+    this(logger, DEFAULT_MODEL_NAMESPACE);
+  }
+
+  public BlockbenchImporter(Logger logger, String namespace) {
     this.logger = logger;
+    this.namespace = Names.namespace(namespace);
   }
 
   public ModelBlueprint importFile(Path file) throws IOException {
@@ -346,12 +352,12 @@ public final class BlockbenchImporter {
         Jsons.string(textureJson, "frame_order", ""));
   }
 
-  private static TextureAsset fallbackTexture(String modelId) {
+  private TextureAsset fallbackTexture(String modelId) {
     return new TextureAsset(
         "0",
         DEFAULT_TEXTURE_NAME,
         "0",
-        DEFAULT_MODEL_NAMESPACE + ":" + TEXTURE_MODEL_DIRECTORY + "/" + modelId + "/fallback",
+        namespace + ":" + TEXTURE_MODEL_DIRECTORY + "/" + modelId + "/fallback",
         null,
         null,
         DEFAULT_TEXTURE_WIDTH,
@@ -363,8 +369,8 @@ public final class BlockbenchImporter {
         "");
   }
 
-  private static String textureModelPath(String modelId, String textureName) {
-    return DEFAULT_MODEL_NAMESPACE
+  private String textureModelPath(String modelId, String textureName) {
+    return namespace
         + ":"
         + TEXTURE_MODEL_DIRECTORY
         + "/"
