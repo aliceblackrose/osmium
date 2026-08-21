@@ -110,10 +110,8 @@ public final class Channel {
 
     double startValue = axis.value(previousFrame.post());
     double endValue = axis.value(nextFrame.pre());
-    double outgoingTime =
-        Math.clamp(axis.value(previousFrame.bezierRightTime()), 0.0, timeGap);
-    double incomingTime =
-        Math.clamp(axis.value(nextFrame.bezierLeftTime()), -timeGap, 0.0);
+    double outgoingTime = Math.clamp(axis.value(previousFrame.bezierRightTime()), 0.0, timeGap);
+    double incomingTime = Math.clamp(axis.value(nextFrame.bezierLeftTime()), -timeGap, 0.0);
 
     double p0x = startTime;
     double p1x = startTime + outgoingTime;
