@@ -1,8 +1,7 @@
 package osmium.render;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.IdentityHashMap;
 import java.util.Optional;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -67,11 +66,13 @@ public final class RuntimeModel {
   private final LivingEntity baseEntity;
   private final ArrayList<RuntimePart> parts;
   private final ArrayList<RuntimeHitbox> hitboxes;
+  private final IdentityHashMap<Bone, Matrix4f> boneTransforms;
   private final AnimationState animationState = new AnimationState();
 
   private boolean removed;
   private boolean manualAnimation;
   private boolean deathAnimationStarted;
+  private boolean frozen;
   private long actionEndsAtNanos;
 
   public RuntimeModel(
@@ -93,6 +94,7 @@ public final class RuntimeModel {
     this.baseEntity = baseEntity;
     this.parts = new ArrayList<>(blueprint.parts().size());
     this.hitboxes = new ArrayList<>(blueprint.hitboxes().size());
+    this.boneTransforms = new IdentityHashMap<>(Math.max(blueprint.bones().size(), 1));
 
     setupBaseEntity();
     spawnParts();
@@ -125,9 +127,10 @@ public final class RuntimeModel {
 
     Animation requestedAnimation = animation.get();
     manualAnimation = baseEntity == null;
+    frozen = false;
     actionEndsAtNanos =
         baseEntity == null ? 0 : System.nanoTime() + actionDurationNanos(requestedAnimation);
-    playIfChanged(requestedAnimation);
+    animationState.play(requestedAnimation);
     return true;
   }
 
@@ -153,7 +156,7 @@ public final class RuntimeModel {
   }
 
   public void tick() {
-    if (removed) {
+    if (removed || (baseEntity == null && frozen)) {
       return;
     }
 
@@ -176,6 +179,11 @@ public final class RuntimeModel {
 
     updateAnimationController();
     updateVisuals();
+
+    if (baseEntity == null
+        && (animationState.animation() == null || animationState.complete())) {
+      frozen = true;
+    }
   }
 
   public void setVisible(Player player, boolean visible) {
@@ -219,10 +227,6 @@ public final class RuntimeModel {
     return normalizedOrigin(baseEntity.getLocation());
   }
 
-  private float yawRadians() {
-    return baseEntity == null ? staticYawRadians : yawRadians(baseEntity.getLocation());
-  }
-
   private void setupBaseEntity() {
     if (baseEntity == null) {
       return;
@@ -241,14 +245,15 @@ public final class RuntimeModel {
   }
 
   private void spawnParts() {
-    World world = origin().getWorld();
+    Location spawnOrigin = origin();
+    World world = spawnOrigin.getWorld();
     if (world == null) {
       return;
     }
 
     for (RenderPart part : blueprint.parts()) {
       ItemDisplay display =
-          world.spawn(origin(), ItemDisplay.class, entity -> setupPart(entity, part));
+          world.spawn(spawnOrigin, ItemDisplay.class, entity -> setupPart(entity, part));
       parts.add(new RuntimePart(part, display));
     }
   }
@@ -273,13 +278,14 @@ public final class RuntimeModel {
   }
 
   private void spawnHitboxes() {
-    World world = origin().getWorld();
+    Location spawnOrigin = origin();
+    World world = spawnOrigin.getWorld();
     if (world == null) {
       return;
     }
 
     for (HitboxPart hitbox : blueprint.hitboxes()) {
-      Interaction interaction = world.spawn(origin(), Interaction.class, this::setupHitbox);
+      Interaction interaction = world.spawn(spawnOrigin, Interaction.class, this::setupHitbox);
       hitboxes.add(new RuntimeHitbox(hitbox, interaction));
     }
   }
@@ -367,6 +373,7 @@ public final class RuntimeModel {
 
   private void playIfChanged(Animation animation) {
     if (!animationState.playing(animation.name())) {
+      frozen = false;
       animationState.play(animation);
     }
   }
@@ -388,23 +395,45 @@ public final class RuntimeModel {
   }
 
   private void updateVisuals() {
-    Map<String, Matrix4f> boneTransforms = computeBoneTransforms();
-    updateParts(boneTransforms);
-    updateHitboxes(boneTransforms);
+    RenderFrame frame = renderFrame();
+    if (frame == null) {
+      return;
+    }
+
+    boneTransforms.clear();
+    applyBoneTransform(blueprint.root(), rootTransform(frame), frame.animationTime());
+    updateParts(frame);
+    updateHitboxes(frame);
   }
 
-  private Map<String, Matrix4f> computeBoneTransforms() {
-    Map<String, Matrix4f> boneTransforms = new HashMap<>();
-    applyBoneTransform(blueprint.root(), rootTransform(), boneTransforms);
-    return boneTransforms;
+  private RenderFrame renderFrame() {
+    Location currentLocation;
+    float yawRadians;
+
+    if (baseEntity == null) {
+      currentLocation = staticOrigin;
+      yawRadians = staticYawRadians;
+    } else {
+      currentLocation = baseEntity.getLocation();
+      yawRadians = yawRadians(currentLocation);
+      currentLocation.setYaw(0);
+      currentLocation.setPitch(0);
+    }
+
+    World world = currentLocation.getWorld();
+    if (world == null) {
+      return null;
+    }
+
+    return new RenderFrame(world, currentLocation, yawRadians, animationState.time());
   }
 
-  private Matrix4f rootTransform() {
-    Location root = origin();
+  private Matrix4f rootTransform(RenderFrame frame) {
+    Location root = frame.origin();
     Matrix4f transform =
         new Matrix4f()
             .translation((float) root.getX(), (float) root.getY(), (float) root.getZ())
-            .rotateY(yawRadians())
+            .rotateY(frame.yawRadians())
             .scale((float) settings.renderScale());
 
     if (settings.groundAlign()) {
@@ -414,13 +443,12 @@ public final class RuntimeModel {
     return transform;
   }
 
-  private void applyBoneTransform(
-      Bone bone, Matrix4f parentTransform, Map<String, Matrix4f> boneTransforms) {
-    Matrix4f boneTransform = boneTransform(bone, parentTransform, sample(bone));
-    boneTransforms.put(bone.name(), boneTransform);
+  private void applyBoneTransform(Bone bone, Matrix4f parentTransform, double animationTime) {
+    Matrix4f boneTransform = boneTransform(bone, parentTransform, sample(bone, animationTime));
+    boneTransforms.put(bone, boneTransform);
 
     for (Bone child : bone.children()) {
-      applyBoneTransform(child, boneTransform, boneTransforms);
+      applyBoneTransform(child, boneTransform, animationTime);
     }
   }
 
@@ -439,7 +467,7 @@ public final class RuntimeModel {
             (float) animationSample.scale().z());
   }
 
-  private BoneTimeline.Sample sample(Bone bone) {
+  private BoneTimeline.Sample sample(Bone bone, double animationTime) {
     Animation animation = animationState.animation();
     if (animation == null) {
       return DEFAULT_SAMPLE;
@@ -450,44 +478,49 @@ public final class RuntimeModel {
       return DEFAULT_SAMPLE;
     }
 
-    return timeline.sample(animationState.time());
+    return timeline.sample(animationTime);
   }
 
-  private void updateParts(Map<String, Matrix4f> boneTransforms) {
+  private void updateParts(RenderFrame frame) {
     for (RuntimePart runtimePart : parts) {
       RenderPart part = runtimePart.blueprint();
-      Matrix4f boneTransform = boneTransforms.get(part.bone().name());
+      Matrix4f boneTransform = boneTransforms.get(part.bone());
 
       if (boneTransform == null) {
         continue;
       }
 
-      updatePart(runtimePart, part, boneTransform);
+      updatePart(frame, runtimePart, part, boneTransform);
     }
   }
 
-  private void updatePart(RuntimePart runtimePart, RenderPart part, Matrix4f boneTransform) {
+  private void updatePart(
+      RenderFrame frame, RuntimePart runtimePart, RenderPart part, Matrix4f boneTransform) {
     Quaternionf cubeRotation = Transforms.staticRotation(part.cube().rotation());
     Vector3f center = partCenter(part.bone(), part.cube(), cubeRotation);
     Matrix4f transform = new Matrix4f(boneTransform).translate(center).rotate(cubeRotation);
 
-    applyDisplayTransform(runtimePart.display(), transform);
+    applyDisplayTransform(frame, runtimePart.display(), transform);
   }
 
-  private void updateHitboxes(Map<String, Matrix4f> boneTransforms) {
+  private void updateHitboxes(RenderFrame frame) {
     for (RuntimeHitbox runtimeHitbox : hitboxes) {
       HitboxPart part = runtimeHitbox.blueprint();
-      Matrix4f boneTransform = boneTransforms.get(part.bone().name());
+      Matrix4f boneTransform = boneTransforms.get(part.bone());
 
       if (boneTransform == null) {
         continue;
       }
 
-      updateHitbox(runtimeHitbox, part, boneTransform);
+      updateHitbox(frame, runtimeHitbox, part, boneTransform);
     }
   }
 
-  private void updateHitbox(RuntimeHitbox runtimeHitbox, HitboxPart part, Matrix4f boneTransform) {
+  private void updateHitbox(
+      RenderFrame frame,
+      RuntimeHitbox runtimeHitbox,
+      HitboxPart part,
+      Matrix4f boneTransform) {
     Quaternionf cubeRotation = Transforms.staticRotation(part.cube().rotation());
     Vector3f center = partCenter(part.bone(), part.cube(), cubeRotation);
     Matrix4f transform = new Matrix4f(boneTransform).translate(center).rotate(cubeRotation);
@@ -505,8 +538,7 @@ public final class RuntimeModel {
     interaction.setInteractionWidth(width);
     interaction.setInteractionHeight(height);
     interaction.teleport(
-        new Location(
-            origin().getWorld(), position.x, position.y - height * 0.5D, position.z, 0, 0));
+        new Location(frame.world(), position.x, position.y - height * 0.5D, position.z, 0, 0));
   }
 
   private Vector3f partCenter(Bone bone, Cube cube, Quaternionf cubeRotation) {
@@ -520,12 +552,12 @@ public final class RuntimeModel {
     return center;
   }
 
-  private void applyDisplayTransform(ItemDisplay display, Matrix4f transform) {
+  private void applyDisplayTransform(RenderFrame frame, ItemDisplay display, Matrix4f transform) {
     Vector3f position = transform.getTranslation(new Vector3f());
     Quaternionf rotation = transform.getNormalizedRotation(new Quaternionf());
     Vector3f scale = transform.getScale(new Vector3f());
 
-    display.teleport(new Location(origin().getWorld(), position.x, position.y, position.z, 0, 0));
+    display.teleport(new Location(frame.world(), position.x, position.y, position.z, 0, 0));
     display.setTransformation(
         new Transformation(new Vector3f(), rotation, scale, new Quaternionf()));
   }
@@ -579,4 +611,7 @@ public final class RuntimeModel {
       baseEntity.remove();
     }
   }
+
+  private record RenderFrame(
+      World world, Location origin, float yawRadians, double animationTime) {}
 }
