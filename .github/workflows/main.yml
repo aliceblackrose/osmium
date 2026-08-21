@@ -48,7 +48,10 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build and test
-        run: ./gradlew clean build --warning-mode all
+        run: |
+          ./gradlew spotlessApply
+          git diff -- src/main/java src/test/java
+          exit 1
 
       - name: Collect release JARs
         if: github.event_name != 'pull_request'
