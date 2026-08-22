@@ -30,7 +30,12 @@ public final class Transforms {
   }
 
   public static Quaternionf animationRotation(Vec3 degrees) {
-    return new Quaternionf()
+    return animationRotation(degrees, new Quaternionf());
+  }
+
+  public static Quaternionf animationRotation(Vec3 degrees, Quaternionf destination) {
+    return destination
+        .identity()
         .rotateZYX(radians(-degrees.z()), radians(-degrees.y()), radians(degrees.x()));
   }
 

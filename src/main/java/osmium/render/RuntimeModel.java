@@ -15,6 +15,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.util.Transformation;
+import org.bukkit.util.Vector;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -64,9 +65,16 @@ public final class RuntimeModel {
   private final Location staticOrigin;
   private final float staticYawRadians;
   private final LivingEntity baseEntity;
-  private final ArrayList<RuntimePart> parts;
-  private final ArrayList<RuntimeHitbox> hitboxes;
-  private final IdentityHashMap<Bone, Matrix4f> boneTransforms;
+  private final ArrayList<PartRenderCache> parts;
+  private final ArrayList<HitboxRenderCache> hitboxes;
+  private final IdentityHashMap<Bone, BoneRenderCache> boneCaches;
+  private final Matrix4f rootTransform = new Matrix4f();
+  private final Optional<Animation> idleAnimation;
+  private final Optional<Animation> walkAnimation;
+  private final Optional<Animation> talkAnimation;
+  private final Optional<Animation> attackAnimation;
+  private final Optional<Animation> hurtAnimation;
+  private final Optional<Animation> deathAnimation;
   private final AnimationState animationState = new AnimationState();
 
   private boolean removed;
@@ -94,8 +102,15 @@ public final class RuntimeModel {
     this.baseEntity = baseEntity;
     this.parts = new ArrayList<>(blueprint.parts().size());
     this.hitboxes = new ArrayList<>(blueprint.hitboxes().size());
-    this.boneTransforms = new IdentityHashMap<>(Math.max(blueprint.bones().size(), 1));
+    this.boneCaches = new IdentityHashMap<>(Math.max(blueprint.bones().size(), 1));
+    this.idleAnimation = firstAnimation(IDLE_ANIMATIONS);
+    this.walkAnimation = firstAnimation(WALK_ANIMATIONS);
+    this.talkAnimation = firstAnimation(TALK_ANIMATIONS);
+    this.attackAnimation = firstAnimation(ATTACK_ANIMATIONS);
+    this.hurtAnimation = firstAnimation(HURT_ANIMATIONS);
+    this.deathAnimation = firstAnimation(DEATH_ANIMATIONS);
 
+    initializeBoneCaches(blueprint.root());
     setupBaseEntity();
     spawnParts();
     spawnHitboxes();
@@ -135,19 +150,19 @@ public final class RuntimeModel {
   }
 
   public boolean playTalk() {
-    return playAction(TALK_ANIMATIONS);
+    return playAction(talkAnimation);
   }
 
   public boolean playAttack() {
-    return playAction(ATTACK_ANIMATIONS);
+    return playAction(attackAnimation);
   }
 
   public boolean playHurt() {
-    return playAction(HURT_ANIMATIONS);
+    return playAction(hurtAnimation);
   }
 
   public boolean playDeath() {
-    boolean played = playAction(DEATH_ANIMATIONS);
+    boolean played = playAction(deathAnimation);
     if (played) {
       deathAnimationStarted = true;
     }
@@ -160,6 +175,8 @@ public final class RuntimeModel {
       return;
     }
 
+    long nowNanos = System.nanoTime();
+
     if (baseEntity != null && (!baseEntity.isValid() || baseEntity.isDead())) {
       if (!deathAnimationStarted) {
         playDeath();
@@ -167,9 +184,9 @@ public final class RuntimeModel {
 
       if (deathAnimationStarted
           && actionEndsAtNanos > 0
-          && System.nanoTime() < actionEndsAtNanos
-          && !animationState.complete()) {
-        updateVisuals();
+          && nowNanos < actionEndsAtNanos
+          && !animationState.complete(nowNanos)) {
+        updateVisuals(nowNanos);
         return;
       }
 
@@ -177,10 +194,11 @@ public final class RuntimeModel {
       return;
     }
 
-    updateAnimationController();
-    updateVisuals();
+    updateAnimationController(nowNanos);
+    updateVisuals(nowNanos);
 
-    if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
+    if (baseEntity == null
+        && (animationState.animation() == null || animationState.complete(nowNanos))) {
       frozen = true;
     }
   }
@@ -253,7 +271,12 @@ public final class RuntimeModel {
     for (RenderPart part : blueprint.parts()) {
       ItemDisplay display =
           world.spawn(spawnOrigin, ItemDisplay.class, entity -> setupPart(entity, part));
-      parts.add(new RuntimePart(part, display));
+      parts.add(
+          new PartRenderCache(
+              new RuntimePart(part, display),
+              boneCaches.get(part.bone()),
+              localTransform(part.bone(), part.cube()),
+              new Matrix4f()));
     }
   }
 
@@ -285,7 +308,13 @@ public final class RuntimeModel {
 
     for (HitboxPart hitbox : blueprint.hitboxes()) {
       Interaction interaction = world.spawn(spawnOrigin, Interaction.class, this::setupHitbox);
-      hitboxes.add(new RuntimeHitbox(hitbox, interaction));
+      hitboxes.add(
+          new HitboxRenderCache(
+              new RuntimeHitbox(hitbox, interaction),
+              boneCaches.get(hitbox.bone()),
+              localTransform(hitbox.bone(), hitbox.cube()),
+              new Matrix4f(),
+              Transforms.bbLocalToMc(hitbox.cube().signedSize()).abs()));
     }
   }
 
@@ -309,7 +338,7 @@ public final class RuntimeModel {
       }
     }
 
-    firstAnimation(IDLE_ANIMATIONS)
+    idleAnimation
         .or(() -> blueprint.animations().values().stream().findFirst())
         .ifPresent(animationState::play);
   }
@@ -329,12 +358,11 @@ public final class RuntimeModel {
     return Optional.empty();
   }
 
-  private boolean playAction(String... names) {
+  private boolean playAction(Optional<Animation> animation) {
     if (manualAnimation) {
       return false;
     }
 
-    Optional<Animation> animation = firstAnimation(names);
     if (animation.isEmpty()) {
       return false;
     }
@@ -345,13 +373,13 @@ public final class RuntimeModel {
     return true;
   }
 
-  private void updateAnimationController() {
+  private void updateAnimationController(long nowNanos) {
     if (baseEntity == null || manualAnimation) {
       return;
     }
 
     if (actionEndsAtNanos > 0) {
-      if (System.nanoTime() < actionEndsAtNanos && !animationState.complete()) {
+      if (nowNanos < actionEndsAtNanos && !animationState.complete(nowNanos)) {
         return;
       }
 
@@ -359,15 +387,15 @@ public final class RuntimeModel {
     }
 
     if (moving()) {
-      playLocomotion(WALK_ANIMATIONS);
+      playLocomotion(walkAnimation);
       return;
     }
 
-    playLocomotion(IDLE_ANIMATIONS);
+    playLocomotion(idleAnimation);
   }
 
-  private void playLocomotion(String... names) {
-    firstAnimation(names).ifPresent(this::playIfChanged);
+  private void playLocomotion(Optional<Animation> animation) {
+    animation.ifPresent(this::playIfChanged);
   }
 
   private void playIfChanged(Animation animation) {
@@ -378,8 +406,9 @@ public final class RuntimeModel {
   }
 
   private boolean moving() {
-    double x = baseEntity.getVelocity().getX();
-    double z = baseEntity.getVelocity().getZ();
+    Vector velocity = baseEntity.getVelocity();
+    double x = velocity.getX();
+    double z = velocity.getZ();
     return x * x + z * z > MOVEMENT_THRESHOLD_SQUARED;
   }
 
@@ -393,81 +422,92 @@ public final class RuntimeModel {
     return Names.key(name);
   }
 
-  private void updateVisuals() {
-    RenderFrame frame = renderFrame();
-    if (frame == null) {
-      return;
-    }
+  private void initializeBoneCaches(Bone bone) {
+    boneCaches.put(bone, new BoneRenderCache(bone));
 
-    boneTransforms.clear();
-    applyBoneTransform(blueprint.root(), rootTransform(frame), frame.animationTime());
-    updateParts(frame);
-    updateHitboxes(frame);
+    for (Bone child : bone.children()) {
+      initializeBoneCaches(child);
+    }
   }
 
-  private RenderFrame renderFrame() {
+  private void updateVisuals(long nowNanos) {
     Location currentLocation;
-    float yawRadians;
+    float currentYawRadians;
 
     if (baseEntity == null) {
       currentLocation = staticOrigin;
-      yawRadians = staticYawRadians;
+      currentYawRadians = staticYawRadians;
     } else {
       currentLocation = baseEntity.getLocation();
-      yawRadians = yawRadians(currentLocation);
+      currentYawRadians = yawRadians(currentLocation);
       currentLocation.setYaw(0);
       currentLocation.setPitch(0);
     }
 
     World world = currentLocation.getWorld();
     if (world == null) {
-      return null;
+      return;
     }
 
-    return new RenderFrame(world, currentLocation, yawRadians, animationState.time());
+    Animation animation = animationState.animation();
+    double animationTime = animationState.time(nowNanos);
+    applyBoneTransform(
+        blueprint.root(),
+        updateRootTransform(currentLocation, currentYawRadians),
+        animation,
+        animationTime);
+    updateParts(world);
+    updateHitboxes(world);
   }
 
-  private Matrix4f rootTransform(RenderFrame frame) {
-    Location root = frame.origin();
-    Matrix4f transform =
-        new Matrix4f()
-            .translation((float) root.getX(), (float) root.getY(), (float) root.getZ())
-            .rotateY(frame.yawRadians())
-            .scale((float) settings.renderScale());
+  private Matrix4f updateRootTransform(Location root, float yawRadians) {
+    rootTransform
+        .translation((float) root.getX(), (float) root.getY(), (float) root.getZ())
+        .rotateY(yawRadians)
+        .scale((float) settings.renderScale());
 
     if (settings.groundAlign()) {
-      transform.translate(0, (float) -blueprint.minY(), 0);
+      rootTransform.translate(0, (float) -blueprint.minY(), 0);
     }
 
-    return transform;
+    return rootTransform;
   }
 
-  private void applyBoneTransform(Bone bone, Matrix4f parentTransform, double animationTime) {
-    Matrix4f boneTransform = boneTransform(bone, parentTransform, sample(bone, animationTime));
-    boneTransforms.put(bone, boneTransform);
+  private void applyBoneTransform(
+      Bone bone, Matrix4f parentTransform, Animation animation, double animationTime) {
+    BoneRenderCache cache = boneCaches.get(bone);
+    Matrix4f boneTransform =
+        updateBoneTransform(cache, bone, parentTransform, sample(animation, bone, animationTime));
 
     for (Bone child : bone.children()) {
-      applyBoneTransform(child, boneTransform, animationTime);
+      applyBoneTransform(child, boneTransform, animation, animationTime);
     }
   }
 
-  private Matrix4f boneTransform(
-      Bone bone, Matrix4f parentTransform, BoneTimeline.Sample animationSample) {
-    Vec3 animatedPosition =
-        bone.localPosition().add(Transforms.animationPosition(animationSample.position()));
+  private static Matrix4f updateBoneTransform(
+      BoneRenderCache cache,
+      Bone bone,
+      Matrix4f parentTransform,
+      BoneTimeline.Sample animationSample) {
+    Vec3 localPosition = bone.localPosition();
+    Vec3 animationPosition = animationSample.position();
 
-    return new Matrix4f(parentTransform)
-        .translate(animatedPosition.toVector3f())
-        .rotate(bone.localRotation())
-        .rotate(Transforms.animationRotation(animationSample.rotation()))
+    return cache
+        .transform()
+        .set(parentTransform)
+        .translate(
+            (float) (localPosition.x() + animationPosition.x() * Transforms.UNIT),
+            (float) (localPosition.y() + animationPosition.y() * Transforms.UNIT),
+            (float) (localPosition.z() - animationPosition.z() * Transforms.UNIT))
+        .rotate(cache.localRotation())
+        .rotate(Transforms.animationRotation(animationSample.rotation(), cache.animationRotation()))
         .scale(
             (float) animationSample.scale().x(),
             (float) animationSample.scale().y(),
             (float) animationSample.scale().z());
   }
 
-  private BoneTimeline.Sample sample(Bone bone, double animationTime) {
-    Animation animation = animationState.animation();
+  private static BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
     if (animation == null) {
       return DEFAULT_SAMPLE;
     }
@@ -480,64 +520,42 @@ public final class RuntimeModel {
     return timeline.sample(animationTime);
   }
 
-  private void updateParts(RenderFrame frame) {
-    for (RuntimePart runtimePart : parts) {
-      RenderPart part = runtimePart.blueprint();
-      Matrix4f boneTransform = boneTransforms.get(part.bone());
-
-      if (boneTransform == null) {
-        continue;
-      }
-
-      updatePart(frame, runtimePart, part, boneTransform);
+  private void updateParts(World world) {
+    for (PartRenderCache cache : parts) {
+      Matrix4f transform =
+          cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
+      applyDisplayTransform(world, cache.runtime().display(), transform);
     }
   }
 
-  private void updatePart(
-      RenderFrame frame, RuntimePart runtimePart, RenderPart part, Matrix4f boneTransform) {
-    Quaternionf cubeRotation = Transforms.staticRotation(part.cube().rotation());
-    Vector3f center = partCenter(part.bone(), part.cube(), cubeRotation);
-    Matrix4f transform = new Matrix4f(boneTransform).translate(center).rotate(cubeRotation);
+  private void updateHitboxes(World world) {
+    for (HitboxRenderCache cache : hitboxes) {
+      Matrix4f transform =
+          cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
+      Vector3f position = transform.getTranslation(new Vector3f());
+      Vector3f scale = transform.getScale(new Vector3f());
+      Vec3 size = cache.size();
 
-    applyDisplayTransform(frame, runtimePart.display(), transform);
-  }
+      float width =
+          Math.max(
+              MINIMUM_HITBOX_SIZE,
+              (float) Math.max(Math.abs(size.x() * scale.x), Math.abs(size.z() * scale.z)));
+      float height = Math.max(MINIMUM_HITBOX_SIZE, (float) Math.abs(size.y() * scale.y));
 
-  private void updateHitboxes(RenderFrame frame) {
-    for (RuntimeHitbox runtimeHitbox : hitboxes) {
-      HitboxPart part = runtimeHitbox.blueprint();
-      Matrix4f boneTransform = boneTransforms.get(part.bone());
-
-      if (boneTransform == null) {
-        continue;
-      }
-
-      updateHitbox(frame, runtimeHitbox, part, boneTransform);
+      Interaction interaction = cache.runtime().interaction();
+      interaction.setInteractionWidth(width);
+      interaction.setInteractionHeight(height);
+      interaction.teleport(
+          new Location(world, position.x, position.y - height * 0.5D, position.z, 0, 0));
     }
   }
 
-  private void updateHitbox(
-      RenderFrame frame, RuntimeHitbox runtimeHitbox, HitboxPart part, Matrix4f boneTransform) {
-    Quaternionf cubeRotation = Transforms.staticRotation(part.cube().rotation());
-    Vector3f center = partCenter(part.bone(), part.cube(), cubeRotation);
-    Matrix4f transform = new Matrix4f(boneTransform).translate(center).rotate(cubeRotation);
-    Vector3f position = transform.getTranslation(new Vector3f());
-    Vector3f scale = transform.getScale(new Vector3f());
-    Vec3 size = Transforms.bbLocalToMc(part.cube().signedSize()).abs();
-
-    float width =
-        Math.max(
-            MINIMUM_HITBOX_SIZE,
-            (float) Math.max(Math.abs(size.x() * scale.x), Math.abs(size.z() * scale.z)));
-    float height = Math.max(MINIMUM_HITBOX_SIZE, (float) Math.abs(size.y() * scale.y));
-
-    Interaction interaction = runtimeHitbox.interaction();
-    interaction.setInteractionWidth(width);
-    interaction.setInteractionHeight(height);
-    interaction.teleport(
-        new Location(frame.world(), position.x, position.y - height * 0.5D, position.z, 0, 0));
+  private static Matrix4f localTransform(Bone bone, Cube cube) {
+    Quaternionf cubeRotation = Transforms.staticRotation(cube.rotation());
+    return new Matrix4f().translate(partCenter(bone, cube, cubeRotation)).rotate(cubeRotation);
   }
 
-  private Vector3f partCenter(Bone bone, Cube cube, Quaternionf cubeRotation) {
+  private static Vector3f partCenter(Bone bone, Cube cube, Quaternionf cubeRotation) {
     Vec3 pivot = Transforms.bbLocalToMc(cube.origin().subtract(bone.origin()));
     Vec3 offsetFromPivot = Transforms.bbLocalToMc(cube.center().subtract(cube.origin()));
 
@@ -548,44 +566,44 @@ public final class RuntimeModel {
     return center;
   }
 
-  private void applyDisplayTransform(RenderFrame frame, ItemDisplay display, Matrix4f transform) {
+  private static void applyDisplayTransform(World world, ItemDisplay display, Matrix4f transform) {
     Vector3f position = transform.getTranslation(new Vector3f());
     Quaternionf rotation = transform.getNormalizedRotation(new Quaternionf());
     Vector3f scale = transform.getScale(new Vector3f());
 
-    display.teleport(new Location(frame.world(), position.x, position.y, position.z, 0, 0));
+    display.teleport(new Location(world, position.x, position.y, position.z, 0, 0));
     display.setTransformation(
         new Transformation(new Vector3f(), rotation, scale, new Quaternionf()));
   }
 
   private void showParts(Player player) {
-    for (RuntimePart part : parts) {
-      player.showEntity(plugin, part.display());
+    for (PartRenderCache part : parts) {
+      player.showEntity(plugin, part.runtime().display());
     }
   }
 
   private void hideParts(Player player) {
-    for (RuntimePart part : parts) {
-      player.hideEntity(plugin, part.display());
+    for (PartRenderCache part : parts) {
+      player.hideEntity(plugin, part.runtime().display());
     }
   }
 
   private void showHitboxes(Player player) {
-    for (RuntimeHitbox hitbox : hitboxes) {
-      player.showEntity(plugin, hitbox.interaction());
+    for (HitboxRenderCache hitbox : hitboxes) {
+      player.showEntity(plugin, hitbox.runtime().interaction());
     }
   }
 
   private void hideHitboxes(Player player) {
-    for (RuntimeHitbox hitbox : hitboxes) {
-      player.hideEntity(plugin, hitbox.interaction());
+    for (HitboxRenderCache hitbox : hitboxes) {
+      player.hideEntity(plugin, hitbox.runtime().interaction());
     }
   }
 
   private void removeParts() {
-    for (RuntimePart part : parts) {
-      if (!part.display().isDead()) {
-        part.display().remove();
+    for (PartRenderCache part : parts) {
+      if (!part.runtime().display().isDead()) {
+        part.runtime().display().remove();
       }
     }
 
@@ -593,9 +611,9 @@ public final class RuntimeModel {
   }
 
   private void removeHitboxes() {
-    for (RuntimeHitbox hitbox : hitboxes) {
-      if (!hitbox.interaction().isDead()) {
-        hitbox.interaction().remove();
+    for (HitboxRenderCache hitbox : hitboxes) {
+      if (!hitbox.runtime().interaction().isDead()) {
+        hitbox.runtime().interaction().remove();
       }
     }
 
@@ -608,6 +626,20 @@ public final class RuntimeModel {
     }
   }
 
-  private record RenderFrame(
-      World world, Location origin, float yawRadians, double animationTime) {}
+  private record BoneRenderCache(
+      Matrix4f transform, Quaternionf localRotation, Quaternionf animationRotation) {
+    private BoneRenderCache(Bone bone) {
+      this(new Matrix4f(), bone.localRotation(), new Quaternionf());
+    }
+  }
+
+  private record PartRenderCache(
+      RuntimePart runtime, BoneRenderCache bone, Matrix4f localTransform, Matrix4f transform) {}
+
+  private record HitboxRenderCache(
+      RuntimeHitbox runtime,
+      BoneRenderCache bone,
+      Matrix4f localTransform,
+      Matrix4f transform,
+      Vec3 size) {}
 }
