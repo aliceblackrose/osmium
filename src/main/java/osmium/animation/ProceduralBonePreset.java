@@ -1,5 +1,6 @@
 package osmium.animation;
 
+import com.google.common.base.Splitter;
 import java.util.Locale;
 
 /** Per-bone multipliers for additive procedural animation. */
@@ -17,6 +18,9 @@ public record ProceduralBonePreset(
     double flinchStrength,
     double springStiffness,
     double springDamping) {
+  private static final Splitter MATCH_SPLITTER =
+      Splitter.onPattern("[,|;]").trimResults().omitEmptyStrings();
+
   public static final ProceduralBonePreset DEFAULT =
       new ProceduralBonePreset("default", "", true, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1);
 
@@ -26,9 +30,8 @@ public record ProceduralBonePreset(
     }
 
     String lowerBoneName = boneName.toLowerCase(Locale.ROOT);
-    for (String fragment : match.toLowerCase(Locale.ROOT).split("[,|;]")) {
-      String trimmed = fragment.trim();
-      if (!trimmed.isEmpty() && lowerBoneName.contains(trimmed)) {
+    for (String fragment : MATCH_SPLITTER.split(match.toLowerCase(Locale.ROOT))) {
+      if (lowerBoneName.contains(fragment)) {
         return true;
       }
     }

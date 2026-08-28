@@ -1,7 +1,6 @@
 package osmium.render;
 
 import java.util.IdentityHashMap;
-import java.util.Optional;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -200,9 +199,7 @@ final class ProceduralAnimationController {
     int variant = (int) Math.floor(stableUnit(cycle + id * 31.0) * 4.0);
     double progress = localTime / activeSeconds;
     return new IdleVariant(
-        variant,
-        Math.sin(progress * Math.PI),
-        Math.sin(progress * Math.PI * IDLE_VARIANT_RATE));
+        variant, Math.sin(progress * Math.PI), Math.sin(progress * Math.PI * IDLE_VARIANT_RATE));
   }
 
   private double flinchAmount(long nowNanos) {
@@ -307,10 +304,7 @@ final class ProceduralAnimationController {
 
   private static double stableSeed(int id, Location location) {
     double value =
-        id * 37.719
-            + location.getX() * 3.13
-            + location.getY() * 5.17
-            + location.getZ() * 7.19;
+        id * 37.719 + location.getX() * 3.13 + location.getY() * 5.17 + location.getZ() * 7.19;
     return stableUnit(value);
   }
 
