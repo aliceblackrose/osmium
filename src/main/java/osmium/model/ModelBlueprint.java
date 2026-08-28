@@ -8,12 +8,43 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import osmium.animation.Animation;
 import osmium.math.Transforms;
 import osmium.math.Vec3;
 import osmium.util.Names;
 
 public final class ModelBlueprint {
+  private static final Set<String> SEMANTIC_ANIMATION_ALIASES =
+      Set.of(
+          "idle",
+          "stand",
+          "standing",
+          "walk",
+          "walking",
+          "move",
+          "moving",
+          "run",
+          "running",
+          "talk",
+          "talking",
+          "speak",
+          "speaking",
+          "interact",
+          "interaction",
+          "attack",
+          "attacking",
+          "bite",
+          "melee",
+          "shoot",
+          "hurt",
+          "damaged",
+          "damage",
+          "hit",
+          "death",
+          "die",
+          "dying");
+
   private final String id;
   private final Path source;
   private final Bone root;
@@ -84,7 +115,27 @@ public final class ModelBlueprint {
   }
 
   public Optional<Animation> animation(String name) {
-    return Optional.ofNullable(animations.get(name));
+    if (name == null || name.isBlank()) {
+      return Optional.empty();
+    }
+
+    String normalizedName = Names.key(name);
+    Animation exactAnimation = animations.get(normalizedName);
+    if (exactAnimation != null) {
+      return Optional.of(exactAnimation);
+    }
+
+    if (!SEMANTIC_ANIMATION_ALIASES.contains(normalizedName)) {
+      return Optional.empty();
+    }
+
+    for (Map.Entry<String, Animation> entry : animations.entrySet()) {
+      if (containsNameToken(entry.getKey(), normalizedName)) {
+        return Optional.of(entry.getValue());
+      }
+    }
+
+    return Optional.empty();
   }
 
   public Map<String, Animation> animations() {
@@ -212,5 +263,25 @@ public final class ModelBlueprint {
     for (Bone child : bone.children()) {
       collectRenderableCubes(child, renderable);
     }
+  }
+
+  private static boolean containsNameToken(String animationName, String token) {
+    int offset = 0;
+    while (offset < animationName.length()) {
+      int separator = animationName.indexOf('_', offset);
+      int end = separator < 0 ? animationName.length() : separator;
+      if (animationName.regionMatches(offset, token, 0, token.length())
+          && end - offset == token.length()) {
+        return true;
+      }
+
+      if (separator < 0) {
+        return false;
+      }
+
+      offset = separator + 1;
+    }
+
+    return false;
   }
 }
