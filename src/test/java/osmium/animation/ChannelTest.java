@@ -49,6 +49,18 @@ final class ChannelTest {
   }
 
   @Test
+  void loopingCatmullRomWrapsNeighborAcrossAnimationSeam() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, new Vec3(20, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(3.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
+
+    assertEquals(4.375, channel.sample(0.5, false).x(), EPSILON);
+    assertEquals(3.125, channel.sample(0.5, true).x(), EPSILON);
+  }
+
+  @Test
   void bezierUsesPerAxisTimeAndValueHandles() {
     Channel channel = new Channel(Vec3.ZERO);
     channel.add(
