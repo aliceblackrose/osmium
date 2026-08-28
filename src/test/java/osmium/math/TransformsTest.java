@@ -29,13 +29,13 @@ final class TransformsTest {
   }
 
   @Test
-  void axisConversionRotatesLocalModelGeometryIntoRuntimeBasis() {
+  void generatedItemGeometryKeepsItsNativeLocalOrientation() {
     Vector3f position = new Vector3f(1, 2, 3);
 
     Transforms.axisConversionRotation().transform(position);
 
-    assertEquals(-1, position.x, EPSILON);
+    assertEquals(1, position.x, EPSILON);
     assertEquals(2, position.y, EPSILON);
-    assertEquals(-3, position.z, EPSILON);
+    assertEquals(3, position.z, EPSILON);
   }
 }
