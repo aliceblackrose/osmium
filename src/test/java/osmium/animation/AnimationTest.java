@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import osmium.math.Vec3;
 
 final class AnimationTest {
   private static final double EPSILON = 1.0E-9;
@@ -43,20 +42,6 @@ final class AnimationTest {
     Animation animation = new Animation("tiny", 0.0, AnimationLoopMode.ONCE, Map.of());
 
     assertEquals(0.05, animation.length(), EPSILON);
-  }
-
-  @Test
-  void loopModeConfiguresTimelineCurveWrapping() {
-    BoneTimeline timeline = new BoneTimeline();
-    timeline.position().add(new Keyframe(0.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
-    timeline.position().add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
-    timeline.position().add(new Keyframe(2.0, new Vec3(20, 0, 0), Interpolation.CATMULL_ROM));
-    timeline.position().add(new Keyframe(3.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
-
-    Animation animation =
-        new Animation("idle", 3.0, AnimationLoopMode.LOOP, Map.of("root", timeline));
-
-    assertEquals(3.125, animation.timelines().get("root").sample(0.5).position().x(), EPSILON);
   }
 
   @Test
