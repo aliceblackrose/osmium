@@ -18,7 +18,20 @@ final class ProceduralAnimationTest {
   @Test
   void bonePresetsMatchCaseInsensitiveFragments() {
     ProceduralBonePreset preset =
-        new ProceduralBonePreset("secondary", "tail, wing | antenna", true, 1, 1, 1, 1, 1, 1, 1, 1, 0.3, 0.7);
+        new ProceduralBonePreset(
+            "secondary",
+            "tail, wing | antenna",
+            true,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            0.3,
+            0.7);
 
     assertTrue(preset.matches("Tail_Tip"));
     assertTrue(preset.matches("left_wing"));

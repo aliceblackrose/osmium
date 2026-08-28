@@ -32,7 +32,8 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
   private static final double UV_ROUNDING_SCALE = 100_000.0;
 
   private static final List<String> SUBCOMMANDS =
-      List.of("reload", "pack", "list", "spawn", "spawnmob", "play", "remove", "debug");
+      List.of(
+          "reload", "pack", "list", "spawn", "spawnmob", "play", "procedural", "remove", "debug");
 
   private final OsmiumPlugin plugin;
 
@@ -61,6 +62,7 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
       case "spawn" -> spawn(sender, arguments);
       case "spawnmob" -> spawnMob(sender, arguments);
       case "play" -> play(sender, arguments);
+      case "procedural" -> procedural(sender, arguments);
       case "remove" -> remove(sender, arguments);
       case "debug" -> debug(sender, arguments);
       default -> sendHelp(sender, label);
@@ -94,6 +96,10 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
 
     if (arguments.length == 2 && isRuntimeIdCommand(arguments[0])) {
       return matching(arguments[1], runtimeModelIds());
+    }
+
+    if (arguments.length == 3 && arguments[0].equalsIgnoreCase("procedural")) {
+      return matching(arguments[2], List.of("on", "off"));
     }
 
     return List.of();
@@ -162,7 +168,9 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
   }
 
   private static boolean isRuntimeIdCommand(String command) {
-    return command.equalsIgnoreCase("play") || command.equalsIgnoreCase("remove");
+    return command.equalsIgnoreCase("play")
+        || command.equalsIgnoreCase("procedural")
+        || command.equalsIgnoreCase("remove");
   }
 
   private static boolean hasAdminPermission(CommandSender sender) {
@@ -343,6 +351,30 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
             NamedTextColor.RED));
   }
 
+  private void procedural(CommandSender sender, String[] arguments) {
+    if (arguments.length < 3) {
+      sender.sendMessage(text("/om procedural <id> <on|off>", NamedTextColor.RED));
+      return;
+    }
+
+    Optional<RuntimeModel> model = runtimeModel(arguments[1]);
+    if (model.isEmpty()) {
+      sender.sendMessage(text("Unknown runtime id.", NamedTextColor.RED));
+      return;
+    }
+
+    String mode = arguments[2].toLowerCase(Locale.ROOT);
+    if (!mode.equals("on") && !mode.equals("off")) {
+      sender.sendMessage(text("Use on or off.", NamedTextColor.RED));
+      return;
+    }
+
+    boolean enabled = mode.equals("on");
+    model.get().setProceduralAnimationEnabled(enabled);
+    sender.sendMessage(
+        text("Procedural animation " + (enabled ? "enabled." : "disabled."), NamedTextColor.GREEN));
+  }
+
   private void remove(CommandSender sender, String[] arguments) {
     if (arguments.length < 2) {
       sender.sendMessage(text("/om remove <id|all>", NamedTextColor.RED));
@@ -466,7 +498,7 @@ public final class ModelCommand implements CommandExecutor, TabCompleter {
   private void sendHelp(CommandSender sender, String label) {
     sender.sendMessage(
         text(
-            "/" + label + " reload|pack|list|spawn|spawnmob|play|remove|debug",
+            "/" + label + " reload|pack|list|spawn|spawnmob|play|procedural|remove|debug",
             NamedTextColor.GOLD));
   }
 
