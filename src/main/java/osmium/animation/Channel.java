@@ -77,8 +77,7 @@ public final class Channel {
     };
   }
 
-  private Vec3 sampleCatmullRom(
-      int previousIndex, int nextIndex, double amount, boolean loop) {
+  private Vec3 sampleCatmullRom(int previousIndex, int nextIndex, double amount, boolean loop) {
     Vec3 p1 = frames.get(previousIndex).post();
     Vec3 p2 = frames.get(nextIndex).pre();
     Vec3 p0 =
