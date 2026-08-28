@@ -75,8 +75,6 @@ public final class ResourcePackGenerator {
     "gui"
   };
 
-  private static final double DEFAULT_FLAT_SIZE = 0.35;
-  private static final double EPSILON = 1.0E-6;
   private static final double MODEL_UNITS = 16.0;
   private static final int FALLBACK_CHECKER_SIZE = 4;
   private static final int FALLBACK_TEXTURE_SIZE = 16;
@@ -182,7 +180,7 @@ public final class ResourcePackGenerator {
   }
 
   private static JsonArray cubeFrom(Cube cube) {
-    Vec3 size = displaySize(cube);
+    Vec3 size = cube.signedSize();
     double inflation = cube.inflate();
 
     return numbers(
@@ -190,20 +188,11 @@ public final class ResourcePackGenerator {
   }
 
   private static JsonArray cubeTo(Cube cube) {
-    Vec3 size = displaySize(cube);
+    Vec3 size = cube.signedSize();
     double inflation = cube.inflate();
 
     return numbers(
         8 + size.x() / 2 + inflation, 8 + size.y() / 2 + inflation, 8 + size.z() / 2 + inflation);
-  }
-
-  private static Vec3 displaySize(Cube cube) {
-    Vec3 size = cube.signedSize();
-    return new Vec3(expandFlat(size.x()), expandFlat(size.y()), expandFlat(size.z()));
-  }
-
-  private static double expandFlat(double value) {
-    return Math.abs(value) < EPSILON ? DEFAULT_FLAT_SIZE : value;
   }
 
   private static double convertUv(double value, int textureSize) {
