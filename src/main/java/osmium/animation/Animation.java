@@ -11,11 +11,7 @@ public record Animation(
   public Animation {
     length = Math.max(length, MIN_LENGTH_SECONDS);
     loopMode = loopMode == null ? AnimationLoopMode.ONCE : loopMode;
-    timelines = new LinkedHashMap<>(timelines);
-    for (BoneTimeline timeline : timelines.values()) {
-      timeline.setLooping(loopMode == AnimationLoopMode.LOOP);
-    }
-    timelines = Collections.unmodifiableMap(timelines);
+    timelines = Collections.unmodifiableMap(new LinkedHashMap<>(timelines));
   }
 
   /**
