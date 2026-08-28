@@ -314,8 +314,7 @@ final class BlockbenchImporterTest {
     assertEquals(10, torsoTimeline.rotation().sample(0).x(), EPSILON);
     assertEquals(20, torsoTimeline.rotation().sample(0).y(), EPSILON);
     assertEquals(30, torsoTimeline.rotation().sample(0).z(), EPSILON);
-    assertEquals(
-        "redstone_golem_idle_animation_1", model.animation("idle").orElseThrow().name());
+    assertEquals("redstone_golem_idle_animation_1", model.animation("idle").orElseThrow().name());
   }
 
   private static BlockbenchImporter importer() {
