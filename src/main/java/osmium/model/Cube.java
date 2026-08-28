@@ -12,9 +12,23 @@ public record Cube(
     Vec3 origin,
     Vec3 rotation,
     double inflate,
+    boolean visible,
     Map<String, Face> faces) {
   public Cube {
     faces = new LinkedHashMap<>(faces);
+  }
+
+  /** Compatibility constructor for programmatic cubes that should be rendered. */
+  public Cube(
+      String uuid,
+      String name,
+      Vec3 from,
+      Vec3 to,
+      Vec3 origin,
+      Vec3 rotation,
+      double inflate,
+      Map<String, Face> faces) {
+    this(uuid, name, from, to, origin, rotation, inflate, true, faces);
   }
 
   public Vec3 center() {
@@ -27,5 +41,9 @@ public record Cube(
 
   public boolean reversed() {
     return signedSize().x() < 0 || signedSize().y() < 0 || signedSize().z() < 0;
+  }
+
+  public boolean renderable() {
+    return visible && !faces.isEmpty();
   }
 }
