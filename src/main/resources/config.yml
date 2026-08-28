@@ -16,3 +16,54 @@ render:
   brightness-sky: 15
   scale: 1.0
   ground-align: true
+  procedural-animation:
+    enabled: true
+    strength: 1.0
+    speed: 1.0
+    idle-breathing: true
+    walk-cycle: true
+    head-tracking: true
+    eye-tracking: true
+    blinking: true
+    turn-lean: true
+    movement-lean: true
+    spring-bones: true
+    idle-variants: true
+    hit-flinch: true
+    head-tracking-range: 12.0
+    head-tracking-max-yaw: 35.0
+    head-tracking-max-pitch: 25.0
+    blink-interval: 4.25
+    blink-duration: 0.16
+    turn-lean-strength: 0.65
+    turn-lean-max-degrees: 9.0
+    movement-lean-strength: 0.75
+    movement-lean-max-degrees: 8.0
+    spring-stiffness: 0.22
+    spring-damping: 0.72
+    hit-flinch-strength: 1.0
+    hit-flinch-duration: 0.34
+    bone-presets:
+      tail:
+        match: tail
+        spring-strength: 1.35
+        idle-strength: 1.1
+        walk-strength: 1.0
+        flinch-strength: 0.8
+      ears:
+        match: ear
+        spring-strength: 0.7
+        idle-strength: 1.3
+        flinch-strength: 1.2
+      hair:
+        match: hair,bang,braid
+        spring-strength: 0.8
+        movement-lean-strength: 0.5
+      eyes:
+        match: eye,pupil,iris
+        tracking-strength: 1.0
+        blink-strength: 1.0
+      root:
+        match: root,body_root,model_root
+        turn-lean-strength: 1.0
+        movement-lean-strength: 1.0

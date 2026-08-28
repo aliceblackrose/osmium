@@ -76,6 +76,7 @@ public final class RuntimeModel {
   private final Optional<Animation> hurtAnimation;
   private final Optional<Animation> deathAnimation;
   private final AnimationState animationState = new AnimationState();
+  private final ProceduralAnimationController proceduralAnimation;
 
   private boolean removed;
   private boolean manualAnimation;
@@ -109,6 +110,8 @@ public final class RuntimeModel {
     this.attackAnimation = firstAnimation(ATTACK_ANIMATIONS);
     this.hurtAnimation = firstAnimation(HURT_ANIMATIONS);
     this.deathAnimation = firstAnimation(DEATH_ANIMATIONS);
+    this.proceduralAnimation =
+        new ProceduralAnimationController(id, settings, blueprint, location, baseEntity);
 
     initializeBoneCaches(blueprint.root());
     setupBaseEntity();
@@ -132,6 +135,17 @@ public final class RuntimeModel {
 
   public boolean removed() {
     return removed;
+  }
+
+  public boolean proceduralAnimationEnabled() {
+    return proceduralAnimation.enabled();
+  }
+
+  public void setProceduralAnimationEnabled(boolean enabled) {
+    proceduralAnimation.setEnabled(enabled);
+    if (enabled) {
+      frozen = false;
+    }
   }
 
   public boolean play(String name) {
@@ -158,6 +172,7 @@ public final class RuntimeModel {
   }
 
   public boolean playHurt() {
+    proceduralAnimation.flinch(System.nanoTime());
     return playAction(hurtAnimation);
   }
 
@@ -198,6 +213,7 @@ public final class RuntimeModel {
     updateVisuals(nowNanos);
 
     if (baseEntity == null
+        && !proceduralAnimation.active()
         && (animationState.animation() == null || animationState.complete(nowNanos))) {
       frozen = true;
     }
@@ -433,13 +449,16 @@ public final class RuntimeModel {
   private void updateVisuals(long nowNanos) {
     Location currentLocation;
     float currentYawRadians;
+    double currentYawDegrees;
 
     if (baseEntity == null) {
       currentLocation = staticOrigin;
       currentYawRadians = staticYawRadians;
+      currentYawDegrees = -Math.toDegrees(staticYawRadians);
     } else {
       currentLocation = baseEntity.getLocation();
       currentYawRadians = yawRadians(currentLocation);
+      currentYawDegrees = currentLocation.getYaw();
       currentLocation.setYaw(0);
       currentLocation.setPitch(0);
     }
@@ -448,6 +467,8 @@ public final class RuntimeModel {
     if (world == null) {
       return;
     }
+
+    proceduralAnimation.update(nowNanos, currentLocation, currentYawDegrees);
 
     Animation animation = animationState.animation();
     double animationTime = animationState.time(nowNanos);
@@ -507,7 +528,18 @@ public final class RuntimeModel {
             (float) animationSample.scale().z());
   }
 
-  private static BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
+  private BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
+    BoneTimeline.Sample authoredSample = authoredSample(animation, bone, animationTime);
+    BoneTimeline.Sample proceduralSample = proceduralAnimation.sample(bone);
+
+    return new BoneTimeline.Sample(
+        authoredSample.position().add(proceduralSample.position()),
+        authoredSample.rotation().add(proceduralSample.rotation()),
+        authoredSample.scale().multiply(proceduralSample.scale()));
+  }
+
+  private static BoneTimeline.Sample authoredSample(
+      Animation animation, Bone bone, double animationTime) {
     if (animation == null) {
       return DEFAULT_SAMPLE;
     }
