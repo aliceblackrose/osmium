@@ -98,7 +98,7 @@ public final class Channel {
   private static Vec3 sampleBezier(Keyframe previousFrame, Keyframe nextFrame, double time) {
     return new Vec3(
         sampleBezierAxis(previousFrame, nextFrame, time, Axis.X),
-        sampleBezierAxis(previousFrame, nextFrameFrame, time, Axis.Y),
+        sampleBezierAxis(previousFrame, nextFrame, time, Axis.Y),
         sampleBezierAxis(previousFrame, nextFrame, time, Axis.Z));
   }
 
