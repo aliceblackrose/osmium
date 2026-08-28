@@ -85,7 +85,8 @@ final class BlockbenchCompatibility {
           continue;
         }
 
-        for (JsonElement keyframeElement : Jsons.array(entry.getValue().getAsJsonObject(), "keyframes")) {
+        for (JsonElement keyframeElement :
+            Jsons.array(entry.getValue().getAsJsonObject(), "keyframes")) {
           if (keyframeElement.isJsonObject()) {
             normalizeLegacyKeyframe(keyframeElement.getAsJsonObject());
           }
