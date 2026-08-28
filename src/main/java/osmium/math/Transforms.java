@@ -18,10 +18,7 @@ public final class Transforms {
   }
 
   public static Vec3 animationPosition(Vec3 blockbenchPosition) {
-    return new Vec3(
-        blockbenchPosition.x() * UNIT,
-        blockbenchPosition.y() * UNIT,
-        -blockbenchPosition.z() * UNIT);
+    return bbLocalToMc(blockbenchPosition);
   }
 
   public static Quaternionf staticRotation(Vec3 degrees) {
@@ -36,7 +33,7 @@ public final class Transforms {
   public static Quaternionf animationRotation(Vec3 degrees, Quaternionf destination) {
     return destination
         .identity()
-        .rotateZYX(radians(-degrees.z()), radians(-degrees.y()), radians(degrees.x()));
+        .rotateZYX(radians(-degrees.z()), radians(degrees.y()), radians(-degrees.x()));
   }
 
   public static Quaternionf axisConversionRotation() {
