@@ -274,7 +274,7 @@ final class BlockbenchImporterTest {
           ],
           "animations": [
             {
-              "name": "idle",
+              "name": "redstone_golem_idle_animation_1",
               "length": 1.0,
               "loop": "loop",
               "animators": {
@@ -300,7 +300,11 @@ final class BlockbenchImporterTest {
     Bone hip = model.bone("redstone_golem_hip").orElseThrow();
     Bone torso = model.bone("redstone_golem_torso").orElseThrow();
     BoneTimeline torsoTimeline =
-        model.animation("idle").orElseThrow().timelines().get("redstone_golem_torso");
+        model
+            .animation("redstone_golem_idle_animation_1")
+            .orElseThrow()
+            .timelines()
+            .get("redstone_golem_torso");
 
     assertEquals(24, hip.origin().y(), EPSILON);
     assertEquals(30, torso.origin().y(), EPSILON);
@@ -310,6 +314,8 @@ final class BlockbenchImporterTest {
     assertEquals(10, torsoTimeline.rotation().sample(0).x(), EPSILON);
     assertEquals(20, torsoTimeline.rotation().sample(0).y(), EPSILON);
     assertEquals(30, torsoTimeline.rotation().sample(0).z(), EPSILON);
+    assertEquals(
+        "redstone_golem_idle_animation_1", model.animation("idle").orElseThrow().name());
   }
 
   private static BlockbenchImporter importer() {
