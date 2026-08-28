@@ -148,7 +148,7 @@ public final class ModelBlueprint {
     double minimumY = 0;
     boolean foundCube = false;
 
-    for (Cube cube : cubes.values()) {
+    for (Cube cube : renderableCubes()) {
       double fromY = Transforms.bbLocalToMc(cube.from()).y();
       double toY = Transforms.bbLocalToMc(cube.to()).y();
       double cubeMinimumY = Math.min(fromY, toY);
@@ -164,7 +164,7 @@ public final class ModelBlueprint {
     Vec3 minimum = null;
     Vec3 maximum = null;
 
-    for (Cube cube : cubes.values()) {
+    for (Cube cube : renderableCubes()) {
       Vec3 from = Transforms.bbLocalToMc(cube.from());
       Vec3 to = Transforms.bbLocalToMc(cube.to());
       Vec3 cubeMinimum =
@@ -191,5 +191,26 @@ public final class ModelBlueprint {
     }
 
     return minimum == null ? Vec3.ZERO : maximum.subtract(minimum);
+  }
+
+  private List<Cube> renderableCubes() {
+    List<Cube> renderable = new ArrayList<>();
+    collectRenderableCubes(root, renderable);
+    return renderable;
+  }
+
+  private void collectRenderableCubes(Bone bone, List<Cube> renderable) {
+    if (bone.visible()) {
+      for (String cubeId : bone.cubeIds()) {
+        Cube cube = cubes.get(cubeId);
+        if (cube != null && cube.renderable()) {
+          renderable.add(cube);
+        }
+      }
+    }
+
+    for (Bone child : bone.children()) {
+      collectRenderableCubes(child, renderable);
+    }
   }
 }
