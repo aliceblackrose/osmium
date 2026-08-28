@@ -490,15 +490,15 @@ public final class RuntimeModel {
       Matrix4f parentTransform,
       BoneTimeline.Sample animationSample) {
     Vec3 localPosition = bone.localPosition();
-    Vec3 animationPosition = animationSample.position();
+    Vec3 animationPosition = Transforms.animationPosition(animationSample.position());
 
     return cache
         .transform()
         .set(parentTransform)
         .translate(
-            (float) (localPosition.x() + animationPosition.x() * Transforms.UNIT),
-            (float) (localPosition.y() + animationPosition.y() * Transforms.UNIT),
-            (float) (localPosition.z() - animationPosition.z() * Transforms.UNIT))
+            (float) (localPosition.x() + animationPosition.x()),
+            (float) (localPosition.y() + animationPosition.y()),
+            (float) (localPosition.z() + animationPosition.z()))
         .rotate(cache.localRotation())
         .rotate(Transforms.animationRotation(animationSample.rotation(), cache.animationRotation()))
         .scale(
@@ -552,7 +552,10 @@ public final class RuntimeModel {
 
   private static Matrix4f localTransform(Bone bone, Cube cube) {
     Quaternionf cubeRotation = Transforms.staticRotation(cube.rotation());
-    return new Matrix4f().translate(partCenter(bone, cube, cubeRotation)).rotate(cubeRotation);
+    return new Matrix4f()
+        .translate(partCenter(bone, cube, cubeRotation))
+        .rotate(cubeRotation)
+        .rotate(Transforms.axisConversionRotation());
   }
 
   private static Vector3f partCenter(Bone bone, Cube cube, Quaternionf cubeRotation) {
