@@ -69,6 +69,10 @@ public final class Bone {
     return visible;
   }
 
+  public boolean renderVisible() {
+    return visible && (parent == null || parent.renderVisible());
+  }
+
   public boolean hitbox() {
     return hitbox;
   }
