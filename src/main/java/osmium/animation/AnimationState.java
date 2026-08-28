@@ -25,26 +25,38 @@ public final class AnimationState {
   }
 
   public boolean complete() {
+    return complete(System.nanoTime());
+  }
+
+  public boolean complete(long nowNanos) {
     Animation currentAnimation = animation;
     return currentAnimation != null
         && !currentAnimation.loop()
-        && elapsedSeconds() >= currentAnimation.length();
+        && elapsedSeconds(nowNanos) >= currentAnimation.length();
   }
 
   public double time() {
+    return time(System.nanoTime());
+  }
+
+  public double time(long nowNanos) {
     Animation currentAnimation = animation;
     if (currentAnimation == null) {
       return 0;
     }
 
-    return currentAnimation.normalize(elapsedSeconds());
+    return currentAnimation.normalize(elapsedSeconds(nowNanos));
   }
 
   public double elapsedSeconds() {
+    return elapsedSeconds(System.nanoTime());
+  }
+
+  public double elapsedSeconds(long nowNanos) {
     if (animation == null) {
       return 0;
     }
 
-    return (System.nanoTime() - startedAtNanos) / NANOS_PER_SECOND;
+    return (nowNanos - startedAtNanos) / NANOS_PER_SECOND;
   }
 }

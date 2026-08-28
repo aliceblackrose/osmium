@@ -5,6 +5,9 @@ import java.util.Locale;
 public enum Interpolation {
   LINEAR,
   STEP,
+  CATMULL_ROM,
+  BEZIER,
+  /** Legacy Osmium smoothstep mode retained for source compatibility. */
   SMOOTH;
 
   public static Interpolation parse(String raw) {
@@ -14,7 +17,8 @@ public enum Interpolation {
 
     return switch (raw.toLowerCase(Locale.ROOT)) {
       case "step", "constant" -> STEP;
-      case "catmullrom", "bezier" -> SMOOTH;
+      case "catmullrom", "catmull_rom", "catmull-rom", "smooth" -> CATMULL_ROM;
+      case "bezier", "bézier" -> BEZIER;
       default -> LINEAR;
     };
   }

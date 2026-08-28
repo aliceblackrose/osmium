@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import osmium.animation.Animation;
+import osmium.animation.AnimationLoopMode;
 import osmium.animation.BoneTimeline;
 import osmium.animation.Interpolation;
 import osmium.animation.Keyframe;
@@ -42,14 +43,21 @@ public final class BlockbenchImporter {
   private static final String[] DIRECTIONS = {"north", "east", "south", "west", "up", "down"};
 
   private final Logger logger;
+  private final String namespace;
 
   public BlockbenchImporter(Logger logger) {
+    this(logger, DEFAULT_MODEL_NAMESPACE);
+  }
+
+  public BlockbenchImporter(Logger logger, String namespace) {
     this.logger = logger;
+    this.namespace = Names.namespace(namespace);
   }
 
   public ModelBlueprint importFile(Path file) throws IOException {
     JsonObject root =
         JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+    BlockbenchCompatibility.normalize(root);
 
     String modelId = Names.key(Names.stem(file.getFileName().toString()));
     Map<String, TextureAsset> textures = readTextures(modelId, file, root);
@@ -117,15 +125,7 @@ public final class BlockbenchImporter {
       }
 
       JsonObject cubeJson = element.getAsJsonObject();
-      if (!Jsons.bool(cubeJson, "visibility", true)) {
-        continue;
-      }
-
       Map<String, Face> faces = readFaces(cubeJson);
-      if (faces.isEmpty()) {
-        continue;
-      }
-
       String uuid = firstNonBlank(Jsons.string(cubeJson, "uuid", ""), UUID.randomUUID().toString());
       String name = firstNonBlank(Jsons.string(cubeJson, "name", ""), "cube_" + index);
 
@@ -139,6 +139,7 @@ public final class BlockbenchImporter {
               Vec3.fromArray(cubeJson.get("origin")),
               Vec3.fromArray(cubeJson.get("rotation")),
               Jsons.dbl(cubeJson, "inflate", 0),
+              Jsons.bool(cubeJson, "visibility", true),
               faces));
     }
 
@@ -247,14 +248,17 @@ public final class BlockbenchImporter {
     return false;
   }
 
-  private static boolean loops(JsonObject animationJson) {
+  private static AnimationLoopMode loopMode(JsonObject animationJson) {
     JsonElement loopElement = animationJson.get("loop");
     if (loopElement == null || loopElement.isJsonNull()) {
-      return true;
+      return AnimationLoopMode.ONCE;
     }
 
-    String value = loopElement.getAsString().toLowerCase(Locale.ROOT);
-    return value.equals("true") || value.equals("loop") || value.equals("hold");
+    try {
+      return AnimationLoopMode.parse(loopElement.getAsString());
+    } catch (IllegalStateException | UnsupportedOperationException | ClassCastException exception) {
+      return AnimationLoopMode.ONCE;
+    }
   }
 
   private static Vec3 keyframePoint(JsonObject keyframeJson, String channel, int pointIndex) {
@@ -346,12 +350,12 @@ public final class BlockbenchImporter {
         Jsons.string(textureJson, "frame_order", ""));
   }
 
-  private static TextureAsset fallbackTexture(String modelId) {
+  private TextureAsset fallbackTexture(String modelId) {
     return new TextureAsset(
         "0",
         DEFAULT_TEXTURE_NAME,
         "0",
-        DEFAULT_MODEL_NAMESPACE + ":" + TEXTURE_MODEL_DIRECTORY + "/" + modelId + "/fallback",
+        namespace + ":" + TEXTURE_MODEL_DIRECTORY + "/" + modelId + "/fallback",
         null,
         null,
         DEFAULT_TEXTURE_WIDTH,
@@ -363,8 +367,8 @@ public final class BlockbenchImporter {
         "");
   }
 
-  private static String textureModelPath(String modelId, String textureName) {
-    return DEFAULT_MODEL_NAMESPACE
+  private String textureModelPath(String modelId, String textureName) {
+    return namespace
         + ":"
         + TEXTURE_MODEL_DIRECTORY
         + "/"
@@ -396,9 +400,9 @@ public final class BlockbenchImporter {
       readOutlinerChild(element, rootBone, cubes, bonesByName, bonesByUuid, animationBoneNames);
     }
 
-    for (String cubeId : cubes.keySet()) {
-      if (!isCubeAssigned(rootBone, cubeId)) {
-        rootBone.addCube(cubeId);
+    for (Map.Entry<String, Cube> entry : cubes.entrySet()) {
+      if (entry.getValue().renderable() && !isCubeAssigned(rootBone, entry.getKey())) {
+        rootBone.addCube(entry.getKey());
       }
     }
 
@@ -431,7 +435,8 @@ public final class BlockbenchImporter {
 
   private static void addCubeReference(JsonElement element, Bone parent, Map<String, Cube> cubes) {
     String cubeId = element.getAsString();
-    if (cubes.containsKey(cubeId)) {
+    Cube cube = cubes.get(cubeId);
+    if (cube != null && (cube.renderable() || parent.hitbox())) {
       parent.addCube(cubeId);
     }
   }
@@ -500,7 +505,7 @@ public final class BlockbenchImporter {
           new Animation(
               name,
               Jsons.dbl(animationJson, "length", DEFAULT_ANIMATION_LENGTH),
-              loops(animationJson),
+              loopMode(animationJson),
               readTimelines(animationJson, animationBoneNames)));
     }
 
@@ -561,7 +566,16 @@ public final class BlockbenchImporter {
         Interpolation.parse(Jsons.string(keyframeJson, "interpolation", "linear"));
     Vec3 start = keyframePoint(keyframeJson, channel, 0);
     Vec3 end = keyframePoint(keyframeJson, channel, 1);
-    Keyframe keyframe = new Keyframe(time, start, end == null ? start : end, interpolation);
+    Keyframe keyframe =
+        new Keyframe(
+            time,
+            start,
+            end == null ? start : end,
+            interpolation,
+            Vec3.fromArray(keyframeJson.get("bezier_left_time")),
+            Vec3.fromArray(keyframeJson.get("bezier_right_time")),
+            Vec3.fromArray(keyframeJson.get("bezier_left_value")),
+            Vec3.fromArray(keyframeJson.get("bezier_right_value")));
 
     switch (channel) {
       case "position", "translation", "move" -> timeline.position().add(keyframe);

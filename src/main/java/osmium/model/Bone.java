@@ -66,7 +66,7 @@ public final class Bone {
   }
 
   public boolean visible() {
-    return visible;
+    return visible && (parent == null || parent.visible());
   }
 
   public boolean hitbox() {
