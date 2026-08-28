@@ -15,12 +15,19 @@ import osmium.math.Vec3;
 import osmium.model.Bone;
 import osmium.model.ModelBlueprint;
 
-/** Stateful runtime inputs for additive procedural animation. */
+/** Stateful runtime inputs for primary procedural pose generation. */
 final class ProceduralAnimationController {
   private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+  private static final double STANDARD_TICK_SECONDS = 0.05;
+  private static final double MAX_DELTA_SECONDS = 0.15;
+  private static final double MAX_EXPECTED_SPEED_BLOCKS = 0.24;
+  private static final double STRIDE_DISTANCE_BLOCKS = 1.45;
   private static final double IDLE_VARIANT_RATE = 7.5;
-  private static final double LOOK_SMOOTHING = 0.22;
+  private static final double MOTION_RESPONSE = 10.0;
+  private static final double KINEMATIC_RESPONSE = 8.0;
+  private static final double LOOK_RESPONSE = 5.0;
   private static final long TRACKING_REFRESH_NANOS = 250_000_000L;
+  private static final double TAU = Math.PI * 2.0;
 
   private final int id;
   private final PluginSettings settings;
@@ -33,13 +40,17 @@ final class ProceduralAnimationController {
   private ProceduralAnimation.Context context = ProceduralAnimation.Context.EMPTY;
   private boolean enabled = true;
   private long lastFlinchAtNanos = Long.MIN_VALUE;
+  private long lastUpdateNanos = Long.MIN_VALUE;
   private double flinchDirection = 1.0;
   private double previousHorizontalSpeed;
   private double previousYawDegrees;
+  private double smoothedHorizontalSpeed;
   private double smoothedTurnRateDegrees;
   private double smoothedAcceleration;
   private double smoothedLookYawDegrees;
   private double smoothedLookPitchDegrees;
+  private double gaitPhase;
+  private double deltaTicks = 1.0;
   private boolean previousMotionCaptured;
   private Player trackingTarget;
   private long nextTrackingSearchAtNanos;
@@ -55,6 +66,7 @@ final class ProceduralAnimationController {
     this.blueprint = blueprint;
     this.baseEntity = baseEntity;
     this.seed = stableSeed(id, initialLocation);
+    this.gaitPhase = seed * TAU;
 
     for (Bone bone : blueprint.bones()) {
       if (ProceduralAnimation.isSpringBone(bone.name())) {
@@ -81,19 +93,39 @@ final class ProceduralAnimationController {
   void update(long nowNanos, Location modelLocation, double modelYawDegrees) {
     if (!active()) {
       context = ProceduralAnimation.Context.EMPTY;
+      lastUpdateNanos = nowNanos;
       return;
     }
 
+    double deltaSeconds = deltaSeconds(nowNanos);
+    deltaTicks = Math.max(0.001, deltaSeconds / STANDARD_TICK_SECONDS);
     double horizontalSpeed = horizontalSpeed();
-    Kinematics kinematics = updateKinematics(horizontalSpeed, modelYawDegrees);
-    LookAngles lookAngles = smoothLookAngles(lookAngles(nowNanos, modelLocation, modelYawDegrees));
+    double motionFactor = smoothingFactor(MOTION_RESPONSE, deltaSeconds);
+    smoothedHorizontalSpeed =
+        smoothValue(smoothedHorizontalSpeed, horizontalSpeed, motionFactor);
+    double motionAmount =
+        Math.clamp(smoothedHorizontalSpeed / MAX_EXPECTED_SPEED_BLOCKS, 0.0, 1.0);
+    boolean grounded = grounded();
+    double verticalSpeed = verticalSpeed();
+
+    updateGaitPhase(deltaSeconds, motionAmount, grounded);
+    Kinematics kinematics =
+        updateKinematics(horizontalSpeed, modelYawDegrees, deltaSeconds, deltaTicks);
+    LookAngles lookAngles =
+        smoothLookAngles(
+            lookAngles(nowNanos, modelLocation, modelYawDegrees),
+            smoothingFactor(LOOK_RESPONSE, deltaSeconds));
     double ageSeconds = ageSeconds(nowNanos);
-    IdleVariant idleVariant = idleVariant(ageSeconds, horizontalSpeed);
+    IdleVariant idleVariant = idleVariant(ageSeconds, motionAmount);
 
     context =
         new ProceduralAnimation.Context(
             ageSeconds,
-            horizontalSpeed,
+            smoothedHorizontalSpeed,
+            motionAmount,
+            gaitPhase,
+            verticalSpeed,
+            grounded,
             kinematics.turnRateDegrees(),
             kinematics.acceleration(),
             lookAngles.yaw(),
@@ -123,6 +155,21 @@ final class ProceduralAnimationController {
     flinchDirection = stableUnit(ageSeconds(nowNanos) * 19.19 + id * 73.73) >= 0.5 ? 1.0 : -1.0;
   }
 
+  private void updateGaitPhase(double deltaSeconds, double motionAmount, boolean grounded) {
+    if (!grounded || motionAmount <= 0.001) {
+      return;
+    }
+
+    double distanceThisUpdate =
+        smoothedHorizontalSpeed * (deltaSeconds / STANDARD_TICK_SECONDS);
+    double phaseDelta =
+        distanceThisUpdate
+            / STRIDE_DISTANCE_BLOCKS
+            * TAU
+            * settings.proceduralAnimationSpeed();
+    gaitPhase = positiveModulo(gaitPhase + phaseDelta, TAU);
+  }
+
   private ProceduralAnimation.BoneSpring springSample(Bone bone) {
     if (!settings.proceduralSpringBones()) {
       return ProceduralAnimation.BoneSpring.ZERO;
@@ -139,11 +186,13 @@ final class ProceduralAnimationController {
         state.update(
             target,
             preset.effectiveSpringStiffness(settings.proceduralSpringStiffness()),
-            preset.effectiveSpringDamping(settings.proceduralSpringDamping()));
+            preset.effectiveSpringDamping(settings.proceduralSpringDamping()),
+            deltaTicks);
     return new ProceduralAnimation.BoneSpring(Vec3.ZERO, rotation);
   }
 
-  private Kinematics updateKinematics(double horizontalSpeed, double yawDegrees) {
+  private Kinematics updateKinematics(
+      double horizontalSpeed, double yawDegrees, double deltaSeconds, double tickScale) {
     if (!previousMotionCaptured) {
       previousHorizontalSpeed = horizontalSpeed;
       previousYawDegrees = yawDegrees;
@@ -151,13 +200,15 @@ final class ProceduralAnimationController {
       return new Kinematics(0, 0);
     }
 
-    double rawTurnRateDegrees = wrapDegrees(yawDegrees - previousYawDegrees);
-    double rawAcceleration = horizontalSpeed - previousHorizontalSpeed;
+    double safeTickScale = Math.max(0.001, tickScale);
+    double rawTurnRateDegrees = wrapDegrees(yawDegrees - previousYawDegrees) / safeTickScale;
+    double rawAcceleration = (horizontalSpeed - previousHorizontalSpeed) / safeTickScale;
     previousHorizontalSpeed = horizontalSpeed;
     previousYawDegrees = yawDegrees;
 
-    smoothedTurnRateDegrees = smoothedTurnRateDegrees * 0.68 + rawTurnRateDegrees * 0.32;
-    smoothedAcceleration = smoothedAcceleration * 0.68 + rawAcceleration * 0.32;
+    double factor = smoothingFactor(KINEMATIC_RESPONSE, deltaSeconds);
+    smoothedTurnRateDegrees = smoothValue(smoothedTurnRateDegrees, rawTurnRateDegrees, factor);
+    smoothedAcceleration = smoothValue(smoothedAcceleration, rawAcceleration, factor);
     return new Kinematics(smoothedTurnRateDegrees, smoothedAcceleration);
   }
 
@@ -168,6 +219,14 @@ final class ProceduralAnimationController {
 
     Vector velocity = baseEntity.getVelocity();
     return Math.hypot(velocity.getX(), velocity.getZ());
+  }
+
+  private double verticalSpeed() {
+    return baseEntity == null ? 0 : baseEntity.getVelocity().getY();
+  }
+
+  private boolean grounded() {
+    return baseEntity == null || baseEntity.isOnGround();
   }
 
   private double blinkAmount(double ageSeconds) {
@@ -185,8 +244,8 @@ final class ProceduralAnimationController {
     return Math.sin((phase / duration) * Math.PI);
   }
 
-  private IdleVariant idleVariant(double ageSeconds, double horizontalSpeed) {
-    if (!settings.proceduralIdleVariants() || horizontalSpeed > 0.025) {
+  private IdleVariant idleVariant(double ageSeconds, double motionAmount) {
+    if (!settings.proceduralIdleVariants() || motionAmount > 0.12) {
       return IdleVariant.NONE;
     }
 
@@ -255,11 +314,9 @@ final class ProceduralAnimationController {
             settings.proceduralHeadTrackingMaxPitch()));
   }
 
-  private LookAngles smoothLookAngles(LookAngles target) {
-    smoothedLookYawDegrees =
-        smoothAngleDegrees(smoothedLookYawDegrees, target.yaw(), LOOK_SMOOTHING);
-    smoothedLookPitchDegrees =
-        smoothValue(smoothedLookPitchDegrees, target.pitch(), LOOK_SMOOTHING);
+  private LookAngles smoothLookAngles(LookAngles target, double factor) {
+    smoothedLookYawDegrees = smoothAngleDegrees(smoothedLookYawDegrees, target.yaw(), factor);
+    smoothedLookPitchDegrees = smoothValue(smoothedLookPitchDegrees, target.pitch(), factor);
     return new LookAngles(smoothedLookYawDegrees, smoothedLookPitchDegrees);
   }
 
@@ -317,8 +374,23 @@ final class ProceduralAnimationController {
     return source;
   }
 
+  private double deltaSeconds(long nowNanos) {
+    if (lastUpdateNanos == Long.MIN_VALUE) {
+      lastUpdateNanos = nowNanos;
+      return STANDARD_TICK_SECONDS;
+    }
+
+    double delta = (nowNanos - lastUpdateNanos) / NANOS_PER_SECOND;
+    lastUpdateNanos = nowNanos;
+    return Math.clamp(delta, 0.001, MAX_DELTA_SECONDS);
+  }
+
   private double ageSeconds(long nowNanos) {
     return (nowNanos - createdAtNanos) / NANOS_PER_SECOND;
+  }
+
+  private static double smoothingFactor(double response, double deltaSeconds) {
+    return 1.0 - Math.exp(-response * deltaSeconds);
   }
 
   private static double stableSeed(int id, Location location) {
@@ -362,11 +434,15 @@ final class ProceduralAnimationController {
     private Vec3 value = Vec3.ZERO;
     private Vec3 velocity = Vec3.ZERO;
 
-    private Vec3 update(Vec3 target, double stiffness, double damping) {
+    private Vec3 update(Vec3 target, double stiffness, double damping, double tickScale) {
       double safeStiffness = Math.max(0, stiffness);
       double safeDamping = Math.clamp(damping, 0, 0.98);
-      velocity = velocity.add(target.subtract(value).multiply(safeStiffness)).multiply(safeDamping);
-      value = value.add(velocity);
+      double safeTickScale = Math.clamp(tickScale, 0.05, 3.0);
+      velocity =
+          velocity
+              .add(target.subtract(value).multiply(safeStiffness * safeTickScale))
+              .multiply(Math.pow(safeDamping, safeTickScale));
+      value = value.add(velocity.multiply(safeTickScale));
       return value;
     }
   }
