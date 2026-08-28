@@ -424,7 +424,8 @@ public final class ProceduralAnimation {
   }
 
   private static boolean isRightLowerLeg(String name) {
-    return containsAny(name, "right_shin", "right_calf", "shin_right", "calf_right", "lower_leg_right");
+    return containsAny(
+        name, "right_shin", "right_calf", "shin_right", "calf_right", "lower_leg_right");
   }
 
   private static boolean isLeftFoot(String name) {
