@@ -19,6 +19,7 @@ import osmium.model.ModelBlueprint;
 final class ProceduralAnimationController {
   private static final double NANOS_PER_SECOND = 1_000_000_000.0;
   private static final double IDLE_VARIANT_RATE = 7.5;
+  private static final double LOOK_SMOOTHING = 0.22;
   private static final long TRACKING_REFRESH_NANOS = 250_000_000L;
 
   private final int id;
@@ -37,6 +38,8 @@ final class ProceduralAnimationController {
   private double previousYawDegrees;
   private double smoothedTurnRateDegrees;
   private double smoothedAcceleration;
+  private double smoothedLookYawDegrees;
+  private double smoothedLookPitchDegrees;
   private boolean previousMotionCaptured;
   private Player trackingTarget;
   private long nextTrackingSearchAtNanos;
@@ -83,7 +86,7 @@ final class ProceduralAnimationController {
 
     double horizontalSpeed = horizontalSpeed();
     Kinematics kinematics = updateKinematics(horizontalSpeed, modelYawDegrees);
-    LookAngles lookAngles = lookAngles(nowNanos, modelLocation, modelYawDegrees);
+    LookAngles lookAngles = smoothLookAngles(lookAngles(nowNanos, modelLocation, modelYawDegrees));
     double ageSeconds = ageSeconds(nowNanos);
     IdleVariant idleVariant = idleVariant(ageSeconds, horizontalSpeed);
 
@@ -250,6 +253,22 @@ final class ProceduralAnimationController {
             targetPitch,
             -settings.proceduralHeadTrackingMaxPitch(),
             settings.proceduralHeadTrackingMaxPitch()));
+  }
+
+  private LookAngles smoothLookAngles(LookAngles target) {
+    smoothedLookYawDegrees =
+        smoothAngleDegrees(smoothedLookYawDegrees, target.yaw(), LOOK_SMOOTHING);
+    smoothedLookPitchDegrees =
+        smoothValue(smoothedLookPitchDegrees, target.pitch(), LOOK_SMOOTHING);
+    return new LookAngles(smoothedLookYawDegrees, smoothedLookPitchDegrees);
+  }
+
+  static double smoothAngleDegrees(double current, double target, double factor) {
+    return current + wrapDegrees(target - current) * Math.clamp(factor, 0, 1);
+  }
+
+  static double smoothValue(double current, double target, double factor) {
+    return current + (target - current) * Math.clamp(factor, 0, 1);
   }
 
   private Player trackingTarget(long nowNanos, World world, Location source) {
