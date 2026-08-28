@@ -15,11 +15,9 @@ final class ModelBlueprintAnimationTest {
   void semanticAliasesMatchTokensInsideExportedAnimationNames() {
     Bone root = new Bone("root", "root", "root", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
     Animation idle =
-        new Animation(
-            "redstone_golem_idle_animation_1", 5.0, AnimationLoopMode.LOOP, Map.of());
+        new Animation("redstone_golem_idle_animation_1", 5.0, AnimationLoopMode.LOOP, Map.of());
     Animation walk =
-        new Animation(
-            "redstone_golem_walk_animation_1", 2.25, AnimationLoopMode.LOOP, Map.of());
+        new Animation("redstone_golem_walk_animation_1", 2.25, AnimationLoopMode.LOOP, Map.of());
     ModelBlueprint model =
         new ModelBlueprint(
             "golem",
