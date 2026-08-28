@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import osmium.animation.AnimationLoopMode;
 import osmium.animation.BoneTimeline;
+import osmium.model.Bone;
 import osmium.model.Cube;
 import osmium.model.ModelBlueprint;
 
@@ -218,6 +219,97 @@ final class BlockbenchImporterTest {
     ModelBlueprint model = importer().importFile(modelFile);
 
     assertEquals(-30, model.bone("arm").orElseThrow().rotationDegrees().z(), EPSILON);
+  }
+
+  @Test
+  void blockbenchFiveSeparateGroupsRestoreAnimatedBonePivots() throws Exception {
+    Path modelFile = tempDirectory.resolve("blockbench-five-groups.bbmodel");
+    Files.writeString(
+        modelFile,
+        """
+        {
+          "meta": {"format_version": "5.0", "model_format": "free"},
+          "elements": [
+            {
+              "uuid": "torso-cube",
+              "name": "redstone_golem_torso",
+              "from": [-20, 28, -10],
+              "to": [20, 60, 10],
+              "origin": [0, 31, -9],
+              "faces": {
+                "north": {"uv": [0, 0, 16, 16], "texture": 0}
+              }
+            }
+          ],
+          "groups": [
+            {
+              "uuid": "hip-bone",
+              "name": "redstone_golem_hip",
+              "origin": [0, 24, 0],
+              "rotation": [0, 0, 0],
+              "visibility": true,
+              "children": []
+            },
+            {
+              "uuid": "torso-bone",
+              "name": "redstone_golem_torso",
+              "origin": [0, 30, 0],
+              "rotation": [0, 0, 0],
+              "visibility": true,
+              "children": []
+            }
+          ],
+          "outliner": [
+            {
+              "uuid": "hip-bone",
+              "isOpen": true,
+              "children": [
+                {
+                  "uuid": "torso-bone",
+                  "isOpen": true,
+                  "children": ["torso-cube"]
+                }
+              ]
+            }
+          ],
+          "animations": [
+            {
+              "name": "idle",
+              "length": 1.0,
+              "loop": "loop",
+              "animators": {
+                "torso-bone": {
+                  "name": "redstone_golem_torso",
+                  "type": "bone",
+                  "keyframes": [
+                    {
+                      "channel": "rotation",
+                      "time": 0.0,
+                      "interpolation": "linear",
+                      "data_points": [{"x": "10", "y": "20", "z": "30"}]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+        """);
+
+    ModelBlueprint model = importer().importFile(modelFile);
+    Bone hip = model.bone("redstone_golem_hip").orElseThrow();
+    Bone torso = model.bone("redstone_golem_torso").orElseThrow();
+    BoneTimeline torsoTimeline =
+        model.animation("idle").orElseThrow().timelines().get("redstone_golem_torso");
+
+    assertEquals(24, hip.origin().y(), EPSILON);
+    assertEquals(30, torso.origin().y(), EPSILON);
+    assertEquals(6.0 / 16.0, torso.localPosition().y(), EPSILON);
+    assertEquals("torso-cube", torso.cubeIds().getFirst());
+    assertEquals("redstone_golem_torso", model.boneByUuid("torso-bone").orElseThrow().name());
+    assertEquals(10, torsoTimeline.rotation().sample(0).x(), EPSILON);
+    assertEquals(20, torsoTimeline.rotation().sample(0).y(), EPSILON);
+    assertEquals(30, torsoTimeline.rotation().sample(0).z(), EPSILON);
   }
 
   private static BlockbenchImporter importer() {
