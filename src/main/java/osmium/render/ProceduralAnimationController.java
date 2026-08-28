@@ -101,10 +101,8 @@ final class ProceduralAnimationController {
     deltaTicks = Math.max(0.001, deltaSeconds / STANDARD_TICK_SECONDS);
     double horizontalSpeed = horizontalSpeed();
     double motionFactor = smoothingFactor(MOTION_RESPONSE, deltaSeconds);
-    smoothedHorizontalSpeed =
-        smoothValue(smoothedHorizontalSpeed, horizontalSpeed, motionFactor);
-    double motionAmount =
-        Math.clamp(smoothedHorizontalSpeed / MAX_EXPECTED_SPEED_BLOCKS, 0.0, 1.0);
+    smoothedHorizontalSpeed = smoothValue(smoothedHorizontalSpeed, horizontalSpeed, motionFactor);
+    double motionAmount = Math.clamp(smoothedHorizontalSpeed / MAX_EXPECTED_SPEED_BLOCKS, 0.0, 1.0);
     boolean grounded = grounded();
     double verticalSpeed = verticalSpeed();
 
@@ -160,13 +158,9 @@ final class ProceduralAnimationController {
       return;
     }
 
-    double distanceThisUpdate =
-        smoothedHorizontalSpeed * (deltaSeconds / STANDARD_TICK_SECONDS);
+    double distanceThisUpdate = smoothedHorizontalSpeed * (deltaSeconds / STANDARD_TICK_SECONDS);
     double phaseDelta =
-        distanceThisUpdate
-            / STRIDE_DISTANCE_BLOCKS
-            * TAU
-            * settings.proceduralAnimationSpeed();
+        distanceThisUpdate / STRIDE_DISTANCE_BLOCKS * TAU * settings.proceduralAnimationSpeed();
     gaitPhase = positiveModulo(gaitPhase + phaseDelta, TAU);
   }
 
