@@ -6,7 +6,6 @@ public final class Transforms {
   public static final double UNIT = 1.0 / 16.0;
 
   private static final double DEGREES_TO_RADIANS = Math.PI / 180.0;
-  private static final float HALF_TURN_RADIANS = (float) Math.PI;
 
   private Transforms() {}
 
@@ -36,8 +35,13 @@ public final class Transforms {
         .rotateZYX(radians(-degrees.z()), radians(degrees.y()), radians(-degrees.x()));
   }
 
+  /**
+   * Generated Minecraft item geometry is already centered in the display entity's local basis.
+   * Applying the Blockbench world-space half-turn here would reverse directional face textures a
+   * second time (most visibly the golem's head/eyes).
+   */
   public static Quaternionf axisConversionRotation() {
-    return new Quaternionf().rotateY(HALF_TURN_RADIANS);
+    return new Quaternionf();
   }
 
   private static float radians(double degrees) {
