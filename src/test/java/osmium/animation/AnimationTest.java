@@ -1,6 +1,8 @@
 package osmium.animation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -10,22 +12,44 @@ final class AnimationTest {
 
   @Test
   void loopingAnimationWrapsElapsedTime() {
-    Animation animation = new Animation("idle", 2.0, true, Map.of());
+    Animation animation = new Animation("idle", 2.0, AnimationLoopMode.LOOP, Map.of());
 
     assertEquals(0.5, animation.normalize(4.5), EPSILON);
+    assertTrue(animation.loop());
+    assertFalse(animation.hold());
   }
 
   @Test
-  void nonLoopingAnimationClampsAtEnd() {
-    Animation animation = new Animation("attack", 1.5, false, Map.of());
+  void onceAnimationClampsAtEnd() {
+    Animation animation = new Animation("attack", 1.5, AnimationLoopMode.ONCE, Map.of());
 
     assertEquals(1.5, animation.normalize(10.0), EPSILON);
+    assertFalse(animation.loop());
+    assertFalse(animation.hold());
+  }
+
+  @Test
+  void holdAnimationClampsAtEndWithoutLooping() {
+    Animation animation = new Animation("pose", 1.5, AnimationLoopMode.HOLD, Map.of());
+
+    assertEquals(1.5, animation.normalize(10.0), EPSILON);
+    assertFalse(animation.loop());
+    assertTrue(animation.hold());
   }
 
   @Test
   void animationLengthHasSafeMinimum() {
-    Animation animation = new Animation("tiny", 0.0, false, Map.of());
+    Animation animation = new Animation("tiny", 0.0, AnimationLoopMode.ONCE, Map.of());
 
     assertEquals(0.05, animation.length(), EPSILON);
+  }
+
+  @Test
+  void loopModeParserMatchesBlockbenchValues() {
+    assertEquals(AnimationLoopMode.ONCE, AnimationLoopMode.parse(null));
+    assertEquals(AnimationLoopMode.ONCE, AnimationLoopMode.parse("once"));
+    assertEquals(AnimationLoopMode.LOOP, AnimationLoopMode.parse("loop"));
+    assertEquals(AnimationLoopMode.LOOP, AnimationLoopMode.parse("true"));
+    assertEquals(AnimationLoopMode.HOLD, AnimationLoopMode.parse("hold"));
   }
 }
