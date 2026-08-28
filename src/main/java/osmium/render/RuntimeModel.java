@@ -172,7 +172,13 @@ public final class RuntimeModel {
   }
 
   public boolean playHurt() {
-    proceduralAnimation.flinch(System.nanoTime());
+    long nowNanos = System.nanoTime();
+    proceduralAnimation.flinch(nowNanos);
+    if (proceduralAnimation.active()) {
+      frozen = false;
+      return true;
+    }
+
     return playAction(hurtAnimation);
   }
 
@@ -349,9 +355,16 @@ public final class RuntimeModel {
     if (initialAnimation != null && !initialAnimation.isBlank()) {
       Optional<Animation> requestedAnimation = animation(initialAnimation);
       if (requestedAnimation.isPresent()) {
-        animationState.play(requestedAnimation.get());
+        Animation initial = requestedAnimation.get();
+        if (!proceduralAnimation.active() || !isLocomotionAnimation(initial)) {
+          animationState.play(initial);
+        }
         return;
       }
+    }
+
+    if (proceduralAnimation.active()) {
+      return;
     }
 
     idleAnimation
@@ -372,6 +385,11 @@ public final class RuntimeModel {
     }
 
     return Optional.empty();
+  }
+
+  private boolean isLocomotionAnimation(Animation animation) {
+    return idleAnimation.filter(candidate -> candidate == animation).isPresent()
+        || walkAnimation.filter(candidate -> candidate == animation).isPresent();
   }
 
   private boolean playAction(Optional<Animation> animation) {
@@ -400,6 +418,11 @@ public final class RuntimeModel {
       }
 
       actionEndsAtNanos = 0;
+    }
+
+    if (proceduralAnimation.active()) {
+      animationState.stop();
+      return;
     }
 
     if (moving()) {
@@ -529,13 +552,11 @@ public final class RuntimeModel {
   }
 
   private BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
-    BoneTimeline.Sample authoredSample = authoredSample(animation, bone, animationTime);
-    BoneTimeline.Sample proceduralSample = proceduralAnimation.sample(bone);
+    if (proceduralAnimation.active() && animation == null) {
+      return proceduralAnimation.sample(bone);
+    }
 
-    return new BoneTimeline.Sample(
-        authoredSample.position().add(proceduralSample.position()),
-        authoredSample.rotation().add(proceduralSample.rotation()),
-        authoredSample.scale().multiply(proceduralSample.scale()));
+    return authoredSample(animation, bone, animationTime);
   }
 
   private static BoneTimeline.Sample authoredSample(
