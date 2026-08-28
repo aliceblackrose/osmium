@@ -3,6 +3,7 @@ package osmium.blockbench;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import osmium.util.Jsons;
@@ -17,6 +18,8 @@ final class BlockbenchCompatibility {
   private BlockbenchCompatibility() {}
 
   static void normalize(JsonObject root) {
+    inlineSeparateGroupMetadata(root);
+
     String version = formatVersion(root);
     if (version.isBlank()) {
       return;
@@ -28,6 +31,51 @@ final class BlockbenchCompatibility {
 
     if (olderThan(version, FORMAT_5_0_MAJOR, FORMAT_5_0_MINOR)) {
       normalizeLegacyAnimationCoordinates(Jsons.array(root, "animations"));
+    }
+  }
+
+  private static void inlineSeparateGroupMetadata(JsonObject root) {
+    Map<String, JsonObject> groupsByUuid = new LinkedHashMap<>();
+
+    for (JsonElement groupElement : Jsons.array(root, "groups")) {
+      if (!groupElement.isJsonObject()) {
+        continue;
+      }
+
+      JsonObject group = groupElement.getAsJsonObject();
+      String uuid = Jsons.string(group, "uuid", "");
+      if (!uuid.isBlank()) {
+        groupsByUuid.put(uuid, group);
+      }
+    }
+
+    if (groupsByUuid.isEmpty()) {
+      return;
+    }
+
+    inlineOutlinerGroups(Jsons.array(root, "outliner"), groupsByUuid);
+  }
+
+  private static void inlineOutlinerGroups(
+      JsonArray children, Map<String, JsonObject> groupsByUuid) {
+    for (JsonElement child : children) {
+      if (!child.isJsonObject()) {
+        continue;
+      }
+
+      JsonObject outlinerGroup = child.getAsJsonObject();
+      String uuid = Jsons.string(outlinerGroup, "uuid", "");
+      JsonObject group = groupsByUuid.get(uuid);
+
+      if (group != null) {
+        for (Map.Entry<String, JsonElement> entry : group.entrySet()) {
+          if (!entry.getKey().equals("children")) {
+            outlinerGroup.add(entry.getKey(), entry.getValue().deepCopy());
+          }
+        }
+      }
+
+      inlineOutlinerGroups(Jsons.array(outlinerGroup, "children"), groupsByUuid);
     }
   }
 
