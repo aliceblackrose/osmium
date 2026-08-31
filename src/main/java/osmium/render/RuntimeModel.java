@@ -198,8 +198,7 @@ public final class RuntimeModel {
     updateAnimationController(nowNanos);
     updateVisuals();
 
-    if (baseEntity == null
-        && (animationState.animation() == null || animationState.complete())) {
+    if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
       frozen = true;
     } else {
       animationState.advance();
@@ -426,7 +425,8 @@ public final class RuntimeModel {
   }
 
   private void initializeBoneCaches(Bone bone) {
-    boneCaches.put(bone, new BoneRenderCache(bone, OverlayDepthBias.minecraftOffset(blueprint, bone)));
+    boneCaches.put(
+        bone, new BoneRenderCache(bone, OverlayDepthBias.minecraftOffset(blueprint, bone)));
 
     for (Bone child : bone.children()) {
       initializeBoneCaches(child);
