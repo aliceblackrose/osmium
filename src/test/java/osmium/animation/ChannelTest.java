@@ -49,6 +49,36 @@ final class ChannelTest {
   }
 
   @Test
+  void incomingCatmullRomControlsPreviousSegment() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));
+    channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, Vec3.ZERO, Interpolation.LINEAR));
+
+    assertEquals(5.625, channel.sample(0.5).x(), EPSILON);
+  }
+
+  @Test
+  void loopingChannelInterpolatesAcrossAnimationSeam() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.5, Vec3.ZERO, Interpolation.LINEAR));
+    channel.add(new Keyframe(1.5, new Vec3(10, 0, 0), Interpolation.LINEAR));
+
+    assertEquals(7.5, channel.sample(1.75, true, 2.0).x(), EPSILON);
+    assertEquals(2.5, channel.sample(0.25, true, 2.0).x(), EPSILON);
+  }
+
+  @Test
+  void loopingCatmullRomWrapsControlPointsAcrossSeam() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, new Vec3(40, 0, 0), Interpolation.CATMULL_ROM));
+
+    assertEquals(21.25, channel.sample(2.5, true, 3.0).x(), EPSILON);
+  }
+
+  @Test
   void bezierUsesPerAxisTimeAndValueHandles() {
     Channel channel = new Channel(Vec3.ZERO);
     channel.add(
