@@ -98,6 +98,22 @@ final class AnimationCompilerTest {
     }
   }
 
+  @Test
+  void loopingTerminalFrameCompilesBackToFrameZeroPose() {
+    Bone root = bone("root", Vec3.ZERO);
+    BoneTimeline timeline = new BoneTimeline();
+    timeline.position().add(new Keyframe(0.25, Vec3.ZERO, Interpolation.LINEAR));
+    timeline.position().add(new Keyframe(0.75, new Vec3(10, 0, 0), Interpolation.LINEAR));
+
+    Animation animation =
+        new Animation("loop", 1.0, AnimationLoopMode.LOOP, Map.of(root.name(), timeline));
+    CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 5);
+
+    CompiledAnimation.Frame first = frameAt(compiled, 0.0);
+    CompiledAnimation.Frame seam = frameAt(compiled, 1.0);
+    assertEquals(first.pose(root.name()).position().x(), seam.pose(root.name()).position().x(), EPSILON);
+  }
+
   private static BoneTimeline rotationTimeline(double endDegrees) {
     BoneTimeline timeline = new BoneTimeline();
     timeline.rotation().add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));
