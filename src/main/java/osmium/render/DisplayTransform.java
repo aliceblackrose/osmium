@@ -48,10 +48,29 @@ final class DisplayTransform {
   }
 
   static Transformation directTrs(Matrix4f matrix) {
+    return directTrs(matrix, null);
+  }
+
+  static Transformation directTrs(Matrix4f matrix, Quaternionf previousRotation) {
     Vector3f translation = matrix.getTranslation(new Vector3f());
     Quaternionf rotation = matrix.getUnnormalizedRotation(new Quaternionf()).normalize();
+    if (previousRotation != null) {
+      keepSameHemisphere(rotation, previousRotation);
+      previousRotation.set(rotation);
+    }
     Vector3f scale = matrix.getScale(new Vector3f());
     return new Transformation(translation, rotation, scale, new Quaternionf());
+  }
+
+  private static void keepSameHemisphere(Quaternionf rotation, Quaternionf previousRotation) {
+    float dot =
+        rotation.x * previousRotation.x
+            + rotation.y * previousRotation.y
+            + rotation.z * previousRotation.z
+            + rotation.w * previousRotation.w;
+    if (dot < 0) {
+      rotation.set(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
+    }
   }
 
   private static boolean approximatelyOrthogonal(
