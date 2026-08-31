@@ -28,6 +28,7 @@ import osmium.model.Bone;
 import osmium.model.Cube;
 import osmium.model.HitboxPart;
 import osmium.model.ModelBlueprint;
+import osmium.model.PartPlacement;
 import osmium.model.RenderPart;
 import osmium.util.Names;
 
@@ -560,6 +561,10 @@ public final class RuntimeModel {
   }
 
   private static Matrix4f localTransform(Bone bone, Cube cube) {
+    if (PartPlacement.canBakeIntoItemModel(cube)) {
+      return new Matrix4f();
+    }
+
     Quaternionf cubeRotation = Transforms.staticRotation(cube.rotation());
     return new Matrix4f()
         .translate(partCenter(bone, cube, cubeRotation))
