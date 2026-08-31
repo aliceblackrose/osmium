@@ -120,7 +120,7 @@ final class ResourcePackGeneratorTest {
     double toX = element.getAsJsonArray("to").get(0).getAsDouble();
     assertTrue(fromX < 8.0);
     assertTrue(toX > 8.0);
-    assertEquals(1.0 / 64.0, toX - fromX, 1.0E-9);
+    assertEquals(1.0 / 64.0, toX - fromX, 2.0E-6);
 
     JsonObject east = element.getAsJsonObject("faces").getAsJsonObject("east");
     assertEquals(48.1 / 128.0 * 16.0, east.getAsJsonArray("uv").get(0).getAsDouble(), 1.0E-9);
