@@ -49,7 +49,9 @@ public final class AnimationCompiler {
       double time = times.get(index);
       Map<String, BoneTimeline.Sample> poses = new LinkedHashMap<>();
       for (Map.Entry<String, BoneTimeline> entry : animation.timelines().entrySet()) {
-        poses.put(entry.getKey(), entry.getValue().sample(time, false, animation.length()));
+        poses.put(
+            entry.getKey(),
+            entry.getValue().sample(time, animation.loop(), animation.length()));
       }
 
       int durationTicks = index == 0 ? 0 : ticksBetween(previousTime, time);
@@ -169,8 +171,11 @@ public final class AnimationCompiler {
     BoneTimeline timeline = animation.timelines().get(bone.name());
     Vec3 localDelta = Vec3.ZERO;
     if (timeline != null && timeline.rotation().frames().size() >= 2) {
-      localDelta =
-          timeline.rotation().sample(nextTime).subtract(timeline.rotation().sample(previousTime));
+      Vec3 previousRotation =
+          timeline.rotation().sample(previousTime, animation.loop(), animation.length());
+      Vec3 nextRotation =
+          timeline.rotation().sample(nextTime, animation.loop(), animation.length());
+      localDelta = nextRotation.subtract(previousRotation);
     }
 
     Vec3 accumulated = parentDelta.add(localDelta);
