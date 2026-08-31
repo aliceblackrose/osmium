@@ -13,9 +13,11 @@ import osmium.model.Bone;
 /**
  * Compiles authored Blockbench channels into a common runtime frame stream.
  *
- * <p>This deliberately follows the architecture used by BetterModel: curve evaluation is a load-time
- * concern, every animated bone shares the same frame boundaries, step transitions get an explicit
- * pre-step frame, and large hierarchical rotations are subdivided before Minecraft interpolates them.
+ * <p>This deliberately follows the architecture used by BetterModel: curve evaluation is a
+ * pre-playback concern, every animated bone shares the same frame boundaries, step transitions get
+ * an explicit pre-step frame, and large hierarchical rotations are subdivided before Minecraft
+ * interpolates them. Because Osmium currently uses Bukkit's 20 TPS entity API rather than a 25 ms
+ * packet tracker, compiled times are quantized to Minecraft server ticks.
  */
 public final class AnimationCompiler {
   public static final double MINECRAFT_TICK_SECONDS = 0.05D;
@@ -28,15 +30,16 @@ public final class AnimationCompiler {
 
   public static CompiledAnimation compile(
       Animation animation, Bone rootBone, int interpolationDurationTicks) {
+    double runtimeLength = quantizeTime(Math.max(animation.length(), MINECRAFT_TICK_SECONDS));
     TreeSet<Double> frameTimes = new TreeSet<>();
     Set<Long> stepTargets = new HashSet<>();
 
-    addTime(frameTimes, 0.0D, animation.length());
-    addTime(frameTimes, animation.length(), animation.length());
-    collectAuthoredTimes(animation, frameTimes);
-    insertInterpolationFrames(frameTimes, interpolationDurationTicks, animation.length());
-    insertStepFrames(animation, frameTimes, stepTargets);
-    insertRotationFrames(animation, rootBone, frameTimes);
+    addTime(frameTimes, 0.0D, runtimeLength);
+    addTime(frameTimes, runtimeLength, runtimeLength);
+    collectAuthoredTimes(animation, runtimeLength, frameTimes);
+    insertInterpolationFrames(frameTimes, interpolationDurationTicks, runtimeLength);
+    insertStepFrames(animation, runtimeLength, frameTimes, stepTargets);
+    insertRotationFrames(animation, rootBone, runtimeLength, frameTimes);
 
     List<Double> times = new ArrayList<>(frameTimes);
     List<CompiledAnimation.Frame> frames = new ArrayList<>(times.size());
@@ -56,26 +59,27 @@ public final class AnimationCompiler {
       previousTime = time;
     }
 
-    return new CompiledAnimation(animation.name(), animation.length(), animation.loopMode(), frames);
+    return new CompiledAnimation(animation.name(), runtimeLength, animation.loopMode(), frames);
   }
 
-  private static void collectAuthoredTimes(Animation animation, TreeSet<Double> frameTimes) {
+  private static void collectAuthoredTimes(
+      Animation animation, double runtimeLength, TreeSet<Double> frameTimes) {
     for (BoneTimeline timeline : animation.timelines().values()) {
-      collectChannelTimes(timeline.position(), animation.length(), frameTimes);
-      collectChannelTimes(timeline.rotation(), animation.length(), frameTimes);
-      collectChannelTimes(timeline.scale(), animation.length(), frameTimes);
+      collectChannelTimes(timeline.position(), runtimeLength, frameTimes);
+      collectChannelTimes(timeline.rotation(), runtimeLength, frameTimes);
+      collectChannelTimes(timeline.scale(), runtimeLength, frameTimes);
     }
   }
 
   private static void collectChannelTimes(
-      Channel channel, double animationLength, TreeSet<Double> frameTimes) {
+      Channel channel, double runtimeLength, TreeSet<Double> frameTimes) {
     for (Keyframe frame : channel.frames()) {
-      addTime(frameTimes, frame.time(), animationLength);
+      addTime(frameTimes, frame.time(), runtimeLength);
     }
   }
 
   private static void insertInterpolationFrames(
-      TreeSet<Double> frameTimes, int interpolationDurationTicks, double animationLength) {
+      TreeSet<Double> frameTimes, int interpolationDurationTicks, double runtimeLength) {
     if (interpolationDurationTicks <= 0) {
       return;
     }
@@ -88,23 +92,26 @@ public final class AnimationCompiler {
       for (double time = first + frameSeconds;
           time < second - MINECRAFT_TICK_SECONDS + EPSILON;
           time += frameSeconds) {
-        addTime(frameTimes, time, animationLength);
+        addTime(frameTimes, time, runtimeLength);
       }
     }
   }
 
   private static void insertStepFrames(
-      Animation animation, TreeSet<Double> frameTimes, Set<Long> stepTargets) {
+      Animation animation,
+      double runtimeLength,
+      TreeSet<Double> frameTimes,
+      Set<Long> stepTargets) {
     for (BoneTimeline timeline : animation.timelines().values()) {
-      insertStepFrames(timeline.position(), animation.length(), frameTimes, stepTargets);
-      insertStepFrames(timeline.rotation(), animation.length(), frameTimes, stepTargets);
-      insertStepFrames(timeline.scale(), animation.length(), frameTimes, stepTargets);
+      insertStepFrames(timeline.position(), runtimeLength, frameTimes, stepTargets);
+      insertStepFrames(timeline.rotation(), runtimeLength, frameTimes, stepTargets);
+      insertStepFrames(timeline.scale(), runtimeLength, frameTimes, stepTargets);
     }
   }
 
   private static void insertStepFrames(
       Channel channel,
-      double animationLength,
+      double runtimeLength,
       TreeSet<Double> frameTimes,
       Set<Long> stepTargets) {
     List<Keyframe> frames = channel.frames();
@@ -115,18 +122,18 @@ public final class AnimationCompiler {
         continue;
       }
 
-      double targetTime = clampedTime(next.time(), animationLength);
+      double targetTime = clampedTime(next.time(), runtimeLength);
       stepTargets.add(timeKey(targetTime));
 
       double holdTime = targetTime - MINECRAFT_TICK_SECONDS;
       if (holdTime + EPSILON >= previous.time()) {
-        addTime(frameTimes, holdTime, animationLength);
+        addTime(frameTimes, holdTime, runtimeLength);
       }
     }
   }
 
   private static void insertRotationFrames(
-      Animation animation, Bone rootBone, TreeSet<Double> frameTimes) {
+      Animation animation, Bone rootBone, double runtimeLength, TreeSet<Double> frameTimes) {
     List<Double> baseTimes = new ArrayList<>(frameTimes);
     for (int index = 1; index < baseTimes.size(); index++) {
       double previous = baseTimes.get(index - 1);
@@ -143,7 +150,7 @@ public final class AnimationCompiler {
         if (next - time < MINECRAFT_TICK_SECONDS - EPSILON) {
           break;
         }
-        addTime(frameTimes, time, animation.length());
+        addTime(frameTimes, time, runtimeLength);
       }
     }
   }
@@ -189,13 +196,17 @@ public final class AnimationCompiler {
     return Math.max(1, (int) Math.round((next - previous) / MINECRAFT_TICK_SECONDS));
   }
 
-  private static void addTime(TreeSet<Double> times, double time, double animationLength) {
-    times.add(clampedTime(time, animationLength));
+  private static void addTime(TreeSet<Double> times, double time, double runtimeLength) {
+    times.add(clampedTime(time, runtimeLength));
   }
 
-  private static double clampedTime(double time, double animationLength) {
-    double clamped = Math.clamp(time, 0.0D, animationLength);
-    return Math.rint(clamped * TIME_SCALE) / TIME_SCALE;
+  private static double clampedTime(double time, double runtimeLength) {
+    return Math.clamp(quantizeTime(time), 0.0D, runtimeLength);
+  }
+
+  private static double quantizeTime(double time) {
+    double ticks = Math.round(time / MINECRAFT_TICK_SECONDS);
+    return Math.rint(ticks * MINECRAFT_TICK_SECONDS * TIME_SCALE) / TIME_SCALE;
   }
 
   private static long timeKey(double time) {
