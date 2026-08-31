@@ -7,6 +7,7 @@ models-folder: models
 resource-pack-folder: resource_pack
 auto-generate-pack-on-reload: true
 render:
+  # One tick matches the server pose cadence; Osmium restarts this interpolation on every update.
   interpolation-duration: 1
   teleport-duration: 1
   view-range: 64.0

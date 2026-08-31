@@ -23,7 +23,7 @@ final class ChannelTest {
   void stepInterpolationHoldsPreviousPostValue() {
     Channel channel = new Channel(Vec3.ZERO);
     channel.add(new Keyframe(0.0, new Vec3(1, 2, 3), new Vec3(4, 5, 6), Interpolation.STEP));
-    channel.add(new Keyframe(1.0, new Vec3(10, 20, 30), Interpolation.LINEAR));
+    channel.add(new Keyframe(1.0, new Vec3(10, 20, 30), Interpolation.CATMULL_ROM));
 
     assertVec3(new Vec3(4, 5, 6), channel.sample(0.75));
   }
@@ -46,6 +46,37 @@ final class ChannelTest {
     channel.add(new Keyframe(3.0, Vec3.ZERO, Interpolation.LINEAR));
 
     assertEquals(5.625, channel.sample(1.5).x(), EPSILON);
+  }
+
+  @Test
+  void incomingCatmullRomControlsPreviousSegment() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));
+    channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, Vec3.ZERO, Interpolation.LINEAR));
+
+    assertEquals(5.625, channel.sample(0.5).x(), EPSILON);
+  }
+
+  @Test
+  void loopingChannelInterpolatesAcrossAnimationSeam() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.5, Vec3.ZERO, Interpolation.LINEAR));
+    channel.add(new Keyframe(1.5, new Vec3(10, 0, 0), Interpolation.LINEAR));
+
+    assertEquals(7.5, channel.sample(1.75, true, 2.0).x(), EPSILON);
+    assertEquals(2.5, channel.sample(0.25, true, 2.0).x(), EPSILON);
+  }
+
+  @Test
+  void loopingCatmullRomUsesBlockbenchBoundaryControlPoints() {
+    Channel channel = new Channel(Vec3.ZERO);
+    channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, new Vec3(20, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(3.0, new Vec3(100, 0, 0), Interpolation.CATMULL_ROM));
+
+    assertEquals(3.125, channel.sample(0.5, true, 4.0).x(), EPSILON);
   }
 
   @Test

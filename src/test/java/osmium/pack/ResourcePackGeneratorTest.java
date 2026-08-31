@@ -54,28 +54,26 @@ final class ResourcePackGeneratorTest {
   }
 
   @Test
-  void zeroThicknessEyePlaneRemainsFlatAndUsesTextureUvResolution() throws Exception {
+  void zeroThicknessEyePlaneRemainsAuthoredFlatGeometry() throws Exception {
     Bone eye = new Bone("eye", "eye", "eye-bone", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
     Cube plane =
         new Cube(
             "eye-plane",
             "eye",
-            new Vec3(-8.025, 18.2, -9.5),
-            new Vec3(-8.025, 19.8, -7.9),
-            new Vec3(-4, 19, -6.7),
-            new Vec3(0, -15, 0),
+            new Vec3(21, 27, -4.025),
+            new Vec3(23, 28, -4.025),
+            new Vec3(22, 26, -3.025),
+            Vec3.ZERO,
             0,
-            Map.of(
-                "east", new Face("east", 48.1, 61.1, 48.9, 61.9, 0, "0"),
-                "south", new Face("south", 0.075, 62.1, -0.1, 63.6, 0, "0")));
+            Map.of("north", new Face("north", 0, 3, 2, 4, 0, "0")));
     eye.addCube(plane.uuid());
 
     TextureAsset texture =
         new TextureAsset(
             "0",
-            "monstruos_bug.png",
+            "bedwars_npc.png",
             "0",
-            "osmium:item/armored_grub/monstruos_bug",
+            "osmium:item/bedwars_npc/bedwars_npc",
             null,
             null,
             128,
@@ -87,8 +85,8 @@ final class ResourcePackGeneratorTest {
             "");
     ModelBlueprint model =
         new ModelBlueprint(
-            "armored_grub",
-            Path.of("armored_grub.bbmodel"),
+            "bedwars_npc",
+            Path.of("bedwars_npc.bbmodel"),
             eye,
             Map.of(eye.name(), eye),
             Map.of(eye.uuid(), eye),
@@ -107,7 +105,7 @@ final class ResourcePackGeneratorTest {
             .resolve("osmium")
             .resolve("models")
             .resolve("item")
-            .resolve("armored_grub")
+            .resolve("bedwars_npc")
             .resolve("eye_eye_0.json");
     JsonObject element =
         JsonParser.parseString(Files.readString(generatedModel))
@@ -116,11 +114,22 @@ final class ResourcePackGeneratorTest {
             .get(0)
             .getAsJsonObject();
 
-    assertEquals(8.0, element.getAsJsonArray("from").get(0).getAsDouble(), 1.0E-9);
-    assertEquals(8.0, element.getAsJsonArray("to").get(0).getAsDouble(), 1.0E-9);
+    double fromX = element.getAsJsonArray("from").get(0).getAsDouble();
+    double fromY = element.getAsJsonArray("from").get(1).getAsDouble();
+    double fromZ = element.getAsJsonArray("from").get(2).getAsDouble();
+    double toX = element.getAsJsonArray("to").get(0).getAsDouble();
+    double toY = element.getAsJsonArray("to").get(1).getAsDouble();
+    double toZ = element.getAsJsonArray("to").get(2).getAsDouble();
 
-    JsonObject east = element.getAsJsonObject("faces").getAsJsonObject("east");
-    assertEquals(48.1 / 128.0 * 16.0, east.getAsJsonArray("uv").get(0).getAsDouble(), 1.0E-9);
-    assertEquals(61.1 / 128.0 * 16.0, east.getAsJsonArray("uv").get(1).getAsDouble(), 1.0E-9);
+    assertEquals(2.0, toX - fromX, 1.0E-9);
+    assertEquals(1.0, toY - fromY, 1.0E-9);
+    assertEquals(0.0, toZ - fromZ, 1.0E-9);
+    assertEquals(8.0, (fromX + toX) * 0.5, 1.0E-9);
+    assertEquals(8.0, (fromY + toY) * 0.5, 1.0E-9);
+    assertEquals(8.0, (fromZ + toZ) * 0.5, 1.0E-9);
+
+    JsonObject north = element.getAsJsonObject("faces").getAsJsonObject("north");
+    assertEquals(0.0, north.getAsJsonArray("uv").get(0).getAsDouble(), 1.0E-9);
+    assertEquals(3.0 / 128.0 * 16.0, north.getAsJsonArray("uv").get(1).getAsDouble(), 1.0E-9);
   }
 }

@@ -1,19 +1,20 @@
 package osmium.animation;
 
+/** Playback state advanced at the same 20 TPS cadence used to transmit display poses. */
 public final class AnimationState {
-  private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+  private static final double TICKS_PER_SECOND = 20.0;
 
   private Animation animation;
-  private long startedAtNanos;
+  private long elapsedTicks;
 
   public void play(Animation animation) {
     this.animation = animation;
-    this.startedAtNanos = System.nanoTime();
+    elapsedTicks = 0;
   }
 
   public void stop() {
     animation = null;
-    startedAtNanos = 0;
+    elapsedTicks = 0;
   }
 
   public Animation animation() {
@@ -25,38 +26,29 @@ public final class AnimationState {
   }
 
   public boolean complete() {
-    return complete(System.nanoTime());
-  }
-
-  public boolean complete(long nowNanos) {
     Animation currentAnimation = animation;
     return currentAnimation != null
         && !currentAnimation.loop()
-        && elapsedSeconds(nowNanos) >= currentAnimation.length();
+        && elapsedSeconds() >= currentAnimation.length();
   }
 
   public double time() {
-    return time(System.nanoTime());
-  }
-
-  public double time(long nowNanos) {
     Animation currentAnimation = animation;
     if (currentAnimation == null) {
       return 0;
     }
 
-    return currentAnimation.normalize(elapsedSeconds(nowNanos));
+    return currentAnimation.normalize(elapsedSeconds());
   }
 
   public double elapsedSeconds() {
-    return elapsedSeconds(System.nanoTime());
+    return animation == null ? 0 : elapsedTicks / TICKS_PER_SECOND;
   }
 
-  public double elapsedSeconds(long nowNanos) {
-    if (animation == null) {
-      return 0;
+  /** Advances exactly one server animation frame (1/20 second). */
+  public void advance() {
+    if (animation != null) {
+      elapsedTicks++;
     }
-
-    return (nowNanos - startedAtNanos) / NANOS_PER_SECOND;
   }
 }

@@ -20,7 +20,14 @@ public final class BoneTimeline {
   }
 
   public Sample sample(double t) {
-    return new Sample(position.sample(t), rotation.sample(t), scale.sample(t));
+    return sample(t, false, 0);
+  }
+
+  public Sample sample(double t, boolean loop, double animationLength) {
+    return new Sample(
+        position.sample(t, loop, animationLength),
+        rotation.sample(t, loop, animationLength),
+        scale.sample(t, loop, animationLength));
   }
 
   public record Sample(Vec3 position, Vec3 rotation, Vec3 scale) {}

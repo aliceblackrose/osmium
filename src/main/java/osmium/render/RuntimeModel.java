@@ -14,7 +14,6 @@ import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -40,6 +39,7 @@ public final class RuntimeModel {
   private static final double LOOPING_ACTION_SECONDS = 1.25D;
   private static final double ACTION_PADDING_SECONDS = 0.05D;
   private static final float MINIMUM_HITBOX_SIZE = 0.1F;
+  private static final float MINIMUM_RENDER_SCALE_COMPONENT = 1.0E-4F;
 
   private static final String[] IDLE_ANIMATIONS = {IDLE_ANIMATION_NAME, "stand", "standing"};
   private static final String[] WALK_ANIMATIONS = {
@@ -185,8 +185,9 @@ public final class RuntimeModel {
       if (deathAnimationStarted
           && actionEndsAtNanos > 0
           && nowNanos < actionEndsAtNanos
-          && !animationState.complete(nowNanos)) {
-        updateVisuals(nowNanos);
+          && !animationState.complete()) {
+        updateVisuals();
+        animationState.advance();
         return;
       }
 
@@ -195,11 +196,12 @@ public final class RuntimeModel {
     }
 
     updateAnimationController(nowNanos);
-    updateVisuals(nowNanos);
+    updateVisuals();
 
-    if (baseEntity == null
-        && (animationState.animation() == null || animationState.complete(nowNanos))) {
+    if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
       frozen = true;
+    } else {
+      animationState.advance();
     }
   }
 
@@ -379,7 +381,7 @@ public final class RuntimeModel {
     }
 
     if (actionEndsAtNanos > 0) {
-      if (nowNanos < actionEndsAtNanos && !animationState.complete(nowNanos)) {
+      if (nowNanos < actionEndsAtNanos && !animationState.complete()) {
         return;
       }
 
@@ -423,14 +425,15 @@ public final class RuntimeModel {
   }
 
   private void initializeBoneCaches(Bone bone) {
-    boneCaches.put(bone, new BoneRenderCache(bone));
+    boneCaches.put(
+        bone, new BoneRenderCache(bone, OverlayDepthBias.minecraftOffset(blueprint, bone)));
 
     for (Bone child : bone.children()) {
       initializeBoneCaches(child);
     }
   }
 
-  private void updateVisuals(long nowNanos) {
+  private void updateVisuals() {
     Location currentLocation;
     float currentYawRadians;
 
@@ -450,21 +453,15 @@ public final class RuntimeModel {
     }
 
     Animation animation = animationState.animation();
-    double animationTime = animationState.time(nowNanos);
+    double animationTime = animationState.time();
     applyBoneTransform(
-        blueprint.root(),
-        updateRootTransform(currentLocation, currentYawRadians),
-        animation,
-        animationTime);
-    updateParts(world);
-    updateHitboxes(world);
+        blueprint.root(), updateRootTransform(currentYawRadians), animation, animationTime);
+    updateParts(currentLocation);
+    updateHitboxes(world, currentLocation);
   }
 
-  private Matrix4f updateRootTransform(Location root, float yawRadians) {
-    rootTransform
-        .translation((float) root.getX(), (float) root.getY(), (float) root.getZ())
-        .rotateY(yawRadians)
-        .scale((float) settings.renderScale());
+  private Matrix4f updateRootTransform(float yawRadians) {
+    rootTransform.identity().rotateY(yawRadians).scale((float) settings.renderScale());
 
     if (settings.groundAlign()) {
       rootTransform.translate(0, (float) -blueprint.minY(), 0);
@@ -489,7 +486,7 @@ public final class RuntimeModel {
       Bone bone,
       Matrix4f parentTransform,
       BoneTimeline.Sample animationSample) {
-    Vec3 localPosition = bone.localPosition();
+    Vec3 localPosition = bone.localPosition().add(cache.overlayOffset());
     Vec3 animationPosition = Transforms.animationPosition(animationSample.position());
 
     return cache
@@ -502,9 +499,15 @@ public final class RuntimeModel {
         .rotate(cache.localRotation())
         .rotate(Transforms.animationRotation(animationSample.rotation(), cache.animationRotation()))
         .scale(
-            (float) animationSample.scale().x(),
-            (float) animationSample.scale().y(),
-            (float) animationSample.scale().z());
+            stableScale(animationSample.scale().x()),
+            stableScale(animationSample.scale().y()),
+            stableScale(animationSample.scale().z()));
+  }
+
+  private static float stableScale(double value) {
+    return Math.abs(value) < MINIMUM_RENDER_SCALE_COMPONENT
+        ? MINIMUM_RENDER_SCALE_COMPONENT
+        : (float) value;
   }
 
   private static BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
@@ -517,18 +520,18 @@ public final class RuntimeModel {
       return DEFAULT_SAMPLE;
     }
 
-    return timeline.sample(animationTime);
+    return timeline.sample(animationTime, animation.loop(), animation.length());
   }
 
-  private void updateParts(World world) {
+  private void updateParts(Location rootLocation) {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(world, cache.runtime().display(), transform);
+      applyDisplayTransform(rootLocation, cache.runtime().display(), transform);
     }
   }
 
-  private void updateHitboxes(World world) {
+  private void updateHitboxes(World world, Location rootLocation) {
     for (HitboxRenderCache cache : hitboxes) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
@@ -546,7 +549,13 @@ public final class RuntimeModel {
       interaction.setInteractionWidth(width);
       interaction.setInteractionHeight(height);
       interaction.teleport(
-          new Location(world, position.x, position.y - height * 0.5D, position.z, 0, 0));
+          new Location(
+              world,
+              rootLocation.getX() + position.x,
+              rootLocation.getY() + position.y - height * 0.5D,
+              rootLocation.getZ() + position.z,
+              0,
+              0));
     }
   }
 
@@ -569,14 +578,15 @@ public final class RuntimeModel {
     return center;
   }
 
-  private static void applyDisplayTransform(World world, ItemDisplay display, Matrix4f transform) {
-    Vector3f position = transform.getTranslation(new Vector3f());
-    Quaternionf rotation = transform.getNormalizedRotation(new Quaternionf());
-    Vector3f scale = transform.getScale(new Vector3f());
-
-    display.teleport(new Location(world, position.x, position.y, position.z, 0, 0));
-    display.setTransformation(
-        new Transformation(new Vector3f(), rotation, scale, new Quaternionf()));
+  private static void applyDisplayTransform(
+      Location rootLocation, ItemDisplay display, Matrix4f transform) {
+    display.teleport(rootLocation);
+    if (DisplayTransform.canUseDirectTrs(transform)) {
+      display.setTransformation(DisplayTransform.directTrs(transform));
+    } else {
+      display.setTransformationMatrix(transform);
+    }
+    display.setInterpolationDelay(0);
   }
 
   private void showParts(Player player) {
@@ -630,9 +640,12 @@ public final class RuntimeModel {
   }
 
   private record BoneRenderCache(
-      Matrix4f transform, Quaternionf localRotation, Quaternionf animationRotation) {
-    private BoneRenderCache(Bone bone) {
-      this(new Matrix4f(), bone.localRotation(), new Quaternionf());
+      Matrix4f transform,
+      Quaternionf localRotation,
+      Quaternionf animationRotation,
+      Vec3 overlayOffset) {
+    private BoneRenderCache(Bone bone, Vec3 overlayOffset) {
+      this(new Matrix4f(), bone.localRotation(), new Quaternionf(), overlayOffset);
     }
   }
 
