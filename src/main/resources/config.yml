@@ -7,8 +7,9 @@ models-folder: models
 resource-pack-folder: resource_pack
 auto-generate-pack-on-reload: true
 render:
-  # One tick matches the server pose cadence; Osmium restarts this interpolation on every update.
-  interpolation-duration: 1
+  # Maximum spacing between compiled animation targets. The runtime uses each compiled frame's
+  # actual duration and only resends local transforms when the target pose changes.
+  interpolation-duration: 5
   teleport-duration: 1
   view-range: 64.0
   shadow-radius: 0.0
