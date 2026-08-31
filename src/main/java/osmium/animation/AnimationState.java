@@ -2,14 +2,14 @@ package osmium.animation;
 
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import osmium.model.Bone;
 
 /** Playback state backed by cached, precompiled animation frame streams. */
 public final class AnimationState {
   private static final double FRAME_TIME_EPSILON = 1.0E-6D;
 
-  private final Map<Animation, CompiledAnimation> compiledAnimations = new IdentityHashMap<>();
+  private final IdentityHashMap<Animation, CompiledAnimation> compiledAnimations =
+      new IdentityHashMap<>();
 
   private Bone rootBone;
   private int compileInterpolationTicks = 1;
