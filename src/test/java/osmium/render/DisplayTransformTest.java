@@ -12,10 +12,7 @@ final class DisplayTransformTest {
   @Test
   void rigidRotationAndUniformScaleUseDirectTrsPath() {
     Matrix4f matrix =
-        new Matrix4f()
-            .translate(1.25F, -2.5F, 0.75F)
-            .rotateXYZ(0.4F, -1.1F, 0.2F)
-            .scale(1.5F);
+        new Matrix4f().translate(1.25F, -2.5F, 0.75F).rotateXYZ(0.4F, -1.1F, 0.2F).scale(1.5F);
 
     assertTrue(DisplayTransform.canUseDirectTrs(matrix));
 
