@@ -31,7 +31,7 @@ public record PluginSettings(
 
   private static final int DEFAULT_CUSTOM_MODEL_DATA_START = 100_000;
   private static final int DEFAULT_PACK_FORMAT = 84;
-  private static final int DEFAULT_INTERPOLATION_DURATION = 1;
+  private static final int DEFAULT_INTERPOLATION_DURATION = 5;
   private static final int DEFAULT_TELEPORT_DURATION = 1;
   private static final int DEFAULT_BRIGHTNESS = 15;
 
