@@ -9,12 +9,14 @@ public final class AnimationState {
   private CompiledAnimation animation;
   private int frameIndex;
   private int ticksUntilNext;
+  private int interpolationDurationTicks;
   private boolean complete;
   private boolean dirty;
 
   public void play(CompiledAnimation animation) {
     this.animation = animation;
     frameIndex = 0;
+    interpolationDurationTicks = 0;
     complete = animation.frames().isEmpty();
     dirty = !complete;
     ticksUntilNext = complete ? 0 : durationToNextFrame();
@@ -24,6 +26,7 @@ public final class AnimationState {
     animation = null;
     frameIndex = 0;
     ticksUntilNext = 0;
+    interpolationDurationTicks = 0;
     complete = false;
     dirty = false;
   }
@@ -47,6 +50,11 @@ public final class AnimationState {
     return animation.frames().get(frameIndex);
   }
 
+  /** Duration Minecraft should use when interpolating from the previous pose to this frame. */
+  public int interpolationDurationTicks() {
+    return interpolationDurationTicks;
+  }
+
   /** True when a new local pose needs to be transmitted to display entities. */
   public boolean dirty() {
     return dirty;
@@ -66,6 +74,7 @@ public final class AnimationState {
     int lastIndex = frames.size() - 1;
     if (frameIndex >= lastIndex) {
       if (animation.loop()) {
+        interpolationDurationTicks = 1;
         frameIndex = 0;
         dirty = true;
         ticksUntilNext = durationToNextFrame();
@@ -84,10 +93,12 @@ public final class AnimationState {
     if (animation.loop()
         && nextIndex == lastIndex
         && Math.abs(frames.get(lastIndex).time() - animation.length()) <= FRAME_TIME_EPSILON) {
-      // The terminal length frame is a compile-time seam marker. At exactly animation.length a
-      // looping animation is back at frame zero, so do not transmit an extra duplicate terminal pose.
+      // The terminal length frame is a compile-time seam marker. Its duration is the duration of the
+      // transition from the last visible frame back to frame zero.
+      interpolationDurationTicks = Math.max(1, frames.get(lastIndex).durationTicks());
       frameIndex = 0;
     } else {
+      interpolationDurationTicks = Math.max(0, frames.get(nextIndex).durationTicks());
       frameIndex = nextIndex;
     }
 
