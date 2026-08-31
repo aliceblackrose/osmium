@@ -107,7 +107,8 @@ final class ResourcePackGeneratorTest {
             .resolve("item")
             .resolve("bedwars_npc")
             .resolve("eye_eye_0.json");
-    JsonObject generated = JsonParser.parseString(Files.readString(generatedModel)).getAsJsonObject();
+    JsonObject generated =
+        JsonParser.parseString(Files.readString(generatedModel)).getAsJsonObject();
     JsonObject element = generated.getAsJsonArray("elements").get(0).getAsJsonObject();
 
     double fromX = element.getAsJsonArray("from").get(0).getAsDouble();
