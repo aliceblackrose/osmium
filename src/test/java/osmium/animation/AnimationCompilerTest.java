@@ -111,7 +111,8 @@ final class AnimationCompilerTest {
 
     CompiledAnimation.Frame first = frameAt(compiled, 0.0);
     CompiledAnimation.Frame seam = frameAt(compiled, 1.0);
-    assertEquals(first.pose(root.name()).position().x(), seam.pose(root.name()).position().x(), EPSILON);
+    assertEquals(
+        first.pose(root.name()).position().x(), seam.pose(root.name()).position().x(), EPSILON);
   }
 
   private static BoneTimeline rotationTimeline(double endDegrees) {
