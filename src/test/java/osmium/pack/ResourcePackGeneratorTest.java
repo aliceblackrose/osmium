@@ -54,7 +54,7 @@ final class ResourcePackGeneratorTest {
   }
 
   @Test
-  void zeroThicknessEyePlaneRemainsFlatAndUsesTextureUvResolution() throws Exception {
+  void zeroThicknessEyePlaneGetsStableDepthAndUsesTextureUvResolution() throws Exception {
     Bone eye = new Bone("eye", "eye", "eye-bone", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
     Cube plane =
         new Cube(
@@ -116,8 +116,11 @@ final class ResourcePackGeneratorTest {
             .get(0)
             .getAsJsonObject();
 
-    assertEquals(8.0, element.getAsJsonArray("from").get(0).getAsDouble(), 1.0E-9);
-    assertEquals(8.0, element.getAsJsonArray("to").get(0).getAsDouble(), 1.0E-9);
+    double fromX = element.getAsJsonArray("from").get(0).getAsDouble();
+    double toX = element.getAsJsonArray("to").get(0).getAsDouble();
+    assertTrue(fromX < 8.0);
+    assertTrue(toX > 8.0);
+    assertEquals(1.0 / 64.0, toX - fromX, 1.0E-9);
 
     JsonObject east = element.getAsJsonObject("faces").getAsJsonObject("east");
     assertEquals(48.1 / 128.0 * 16.0, east.getAsJsonArray("uv").get(0).getAsDouble(), 1.0E-9);
