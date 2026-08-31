@@ -54,7 +54,8 @@ public final class Channel {
     for (int index = 1; index < frames.size(); index++) {
       Keyframe nextFrame = frames.get(index);
       if (time <= nextFrame.time()) {
-        return sampleBetween(index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
+        return sampleBetween(
+            index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
       }
     }
 
@@ -71,34 +72,19 @@ public final class Channel {
 
     if (time < firstFrame.time()) {
       return sampleBetween(
-          frames.size() - 1,
-          0,
-          time,
-          lastFrame.time() - animationLength,
-          firstFrame.time(),
-          true);
+          frames.size() - 1, 0, time, lastFrame.time() - animationLength, firstFrame.time(), true);
     }
 
     for (int index = 1; index < frames.size(); index++) {
       Keyframe nextFrame = frames.get(index);
       if (time <= nextFrame.time()) {
         return sampleBetween(
-            index - 1,
-            index,
-            time,
-            frames.get(index - 1).time(),
-            nextFrame.time(),
-            true);
+            index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), true);
       }
     }
 
     return sampleBetween(
-        frames.size() - 1,
-        0,
-        time,
-        lastFrame.time(),
-        firstFrame.time() + animationLength,
-        true);
+        frames.size() - 1, 0, time, lastFrame.time(), firstFrame.time() + animationLength, true);
   }
 
   private int insertionIndex(Keyframe frame) {
@@ -162,8 +148,7 @@ public final class Channel {
     return previous == Interpolation.STEP ? Interpolation.STEP : Interpolation.LINEAR;
   }
 
-  private Vec3 sampleCatmullRom(
-      int previousIndex, int nextIndex, double amount, boolean loop) {
+  private Vec3 sampleCatmullRom(int previousIndex, int nextIndex, double amount, boolean loop) {
     Vec3 p1 = frames.get(previousIndex).post();
     Vec3 p2 = frames.get(nextIndex).pre();
     Vec3 p0 = neighboringValue(previousIndex - 1, p1, true, loop);
