@@ -112,6 +112,10 @@ public final class Channel {
       boolean loop) {
     Keyframe previousFrame = frames.get(previousIndex);
     Keyframe nextFrame = frames.get(nextIndex);
+    if (previousFrame.interpolation() == Interpolation.STEP) {
+      return previousFrame.post();
+    }
+
     double amount = normalizedAmount(previousTime, nextTime, time);
     Interpolation interpolation = interpolation(previousFrame, nextFrame);
 
@@ -145,7 +149,7 @@ public final class Channel {
       return Interpolation.BEZIER;
     }
 
-    return previous == Interpolation.STEP ? Interpolation.STEP : Interpolation.LINEAR;
+    return Interpolation.LINEAR;
   }
 
   private Vec3 sampleCatmullRom(int previousIndex, int nextIndex, double amount, boolean loop) {
@@ -169,7 +173,7 @@ public final class Channel {
       return fallbackValue;
     }
 
-    int wrappedIndex = Math.floorMod(index, frames.size());
+    int wrappedIndex = before ? frames.size() - 2 : 1;
     return before ? frames.get(wrappedIndex).post() : frames.get(wrappedIndex).pre();
   }
 
