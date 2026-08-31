@@ -47,11 +47,11 @@ public final class AnimationCompiler {
 
     for (int index = 0; index < times.size(); index++) {
       double time = times.get(index);
+      double sampleTime = sourceTime(animation, time, runtimeLength);
       Map<String, BoneTimeline.Sample> poses = new LinkedHashMap<>();
       for (Map.Entry<String, BoneTimeline> entry : animation.timelines().entrySet()) {
         poses.put(
-            entry.getKey(),
-            entry.getValue().sample(time, animation.loop(), animation.length()));
+            entry.getKey(), entry.getValue().sample(sampleTime, animation.loop(), animation.length()));
       }
 
       int durationTicks = index == 0 ? 0 : ticksBetween(previousTime, time);
@@ -100,10 +100,7 @@ public final class AnimationCompiler {
   }
 
   private static void insertStepFrames(
-      Animation animation,
-      double runtimeLength,
-      Set<Double> frameTimes,
-      Set<Long> stepTargets) {
+      Animation animation, double runtimeLength, Set<Double> frameTimes, Set<Long> stepTargets) {
     for (BoneTimeline timeline : animation.timelines().values()) {
       insertStepFrames(timeline.position(), runtimeLength, frameTimes, stepTargets);
       insertStepFrames(timeline.rotation(), runtimeLength, frameTimes, stepTargets);
@@ -137,7 +134,8 @@ public final class AnimationCompiler {
     for (int index = 1; index < baseTimes.size(); index++) {
       double previous = baseTimes.get(index - 1);
       double next = baseTimes.get(index);
-      double maximumRotation = maximumHierarchicalRotation(animation, rootBone, previous, next);
+      double maximumRotation =
+          maximumHierarchicalRotation(animation, rootBone, previous, next, runtimeLength);
       if (maximumRotation <= MAX_ROTATION_STEP_DEGREES) {
         continue;
       }
@@ -154,9 +152,13 @@ public final class AnimationCompiler {
   }
 
   private static double maximumHierarchicalRotation(
-      Animation animation, Bone rootBone, double previousTime, double nextTime) {
+      Animation animation,
+      Bone rootBone,
+      double previousTime,
+      double nextTime,
+      double runtimeLength) {
     return maximumHierarchicalRotation(
-        animation, rootBone, previousTime, nextTime, Vec3.ZERO, 0.0D);
+        animation, rootBone, previousTime, nextTime, runtimeLength, Vec3.ZERO, 0.0D);
   }
 
   private static double maximumHierarchicalRotation(
@@ -164,15 +166,18 @@ public final class AnimationCompiler {
       Bone bone,
       double previousTime,
       double nextTime,
+      double runtimeLength,
       Vec3 parentDelta,
       double maximum) {
     BoneTimeline timeline = animation.timelines().get(bone.name());
     Vec3 localDelta = Vec3.ZERO;
     if (timeline != null && timeline.rotation().frames().size() >= 2) {
+      double previousSampleTime = sourceTime(animation, previousTime, runtimeLength);
+      double nextSampleTime = sourceTime(animation, nextTime, runtimeLength);
       Vec3 previousRotation =
-          timeline.rotation().sample(previousTime, animation.loop(), animation.length());
+          timeline.rotation().sample(previousSampleTime, animation.loop(), animation.length());
       Vec3 nextRotation =
-          timeline.rotation().sample(nextTime, animation.loop(), animation.length());
+          timeline.rotation().sample(nextSampleTime, animation.loop(), animation.length());
       localDelta = nextRotation.subtract(previousRotation);
     }
 
@@ -183,9 +188,22 @@ public final class AnimationCompiler {
           Math.max(
               maximum,
               maximumHierarchicalRotation(
-                  animation, child, previousTime, nextTime, accumulated, maximum));
+                  animation,
+                  child,
+                  previousTime,
+                  nextTime,
+                  runtimeLength,
+                  accumulated,
+                  maximum));
     }
     return maximum;
+  }
+
+  private static double sourceTime(Animation animation, double runtimeTime, double runtimeLength) {
+    if (animation.loop() && Math.abs(runtimeTime - runtimeLength) <= EPSILON) {
+      return 0.0D;
+    }
+    return Math.min(runtimeTime, animation.length());
   }
 
   private static double vectorLength(Vec3 vector) {
