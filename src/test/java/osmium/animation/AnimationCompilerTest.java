@@ -118,9 +118,7 @@ final class AnimationCompilerTest {
   private static BoneTimeline rotationTimeline(double endDegrees) {
     BoneTimeline timeline = new BoneTimeline();
     timeline.rotation().add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));
-    timeline
-        .rotation()
-        .add(new Keyframe(0.2, new Vec3(endDegrees, 0, 0), Interpolation.LINEAR));
+    timeline.rotation().add(new Keyframe(0.2, new Vec3(endDegrees, 0, 0), Interpolation.LINEAR));
     return timeline;
   }
 
