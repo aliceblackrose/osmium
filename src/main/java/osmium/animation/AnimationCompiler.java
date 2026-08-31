@@ -65,7 +65,7 @@ public final class AnimationCompiler {
   }
 
   private static void collectAuthoredTimes(
-      Animation animation, double runtimeLength, TreeSet<Double> frameTimes) {
+      Animation animation, double runtimeLength, Set<Double> frameTimes) {
     for (BoneTimeline timeline : animation.timelines().values()) {
       collectChannelTimes(timeline.position(), runtimeLength, frameTimes);
       collectChannelTimes(timeline.rotation(), runtimeLength, frameTimes);
@@ -74,14 +74,14 @@ public final class AnimationCompiler {
   }
 
   private static void collectChannelTimes(
-      Channel channel, double runtimeLength, TreeSet<Double> frameTimes) {
+      Channel channel, double runtimeLength, Set<Double> frameTimes) {
     for (Keyframe frame : channel.frames()) {
       addTime(frameTimes, frame.time(), runtimeLength);
     }
   }
 
   private static void insertInterpolationFrames(
-      TreeSet<Double> frameTimes, int interpolationDurationTicks, double runtimeLength) {
+      Set<Double> frameTimes, int interpolationDurationTicks, double runtimeLength) {
     if (interpolationDurationTicks <= 0) {
       return;
     }
@@ -102,7 +102,7 @@ public final class AnimationCompiler {
   private static void insertStepFrames(
       Animation animation,
       double runtimeLength,
-      TreeSet<Double> frameTimes,
+      Set<Double> frameTimes,
       Set<Long> stepTargets) {
     for (BoneTimeline timeline : animation.timelines().values()) {
       insertStepFrames(timeline.position(), runtimeLength, frameTimes, stepTargets);
@@ -112,10 +112,7 @@ public final class AnimationCompiler {
   }
 
   private static void insertStepFrames(
-      Channel channel,
-      double runtimeLength,
-      TreeSet<Double> frameTimes,
-      Set<Long> stepTargets) {
+      Channel channel, double runtimeLength, Set<Double> frameTimes, Set<Long> stepTargets) {
     List<Keyframe> frames = channel.frames();
     for (int index = 1; index < frames.size(); index++) {
       Keyframe previous = frames.get(index - 1);
@@ -135,7 +132,7 @@ public final class AnimationCompiler {
   }
 
   private static void insertRotationFrames(
-      Animation animation, Bone rootBone, double runtimeLength, TreeSet<Double> frameTimes) {
+      Animation animation, Bone rootBone, double runtimeLength, Set<Double> frameTimes) {
     List<Double> baseTimes = new ArrayList<>(frameTimes);
     for (int index = 1; index < baseTimes.size(); index++) {
       double previous = baseTimes.get(index - 1);
@@ -145,8 +142,9 @@ public final class AnimationCompiler {
         continue;
       }
 
-      // BetterModel subdivides high angular deltas. Osmium cannot safely send Bukkit display updates
-      // faster than a server tick, so use every transport slot available inside the risky interval.
+      // BetterModel subdivides high angular deltas. Osmium cannot safely send Bukkit display
+      // updates faster than a server tick, so use every transport slot available inside the risky
+      // interval.
       for (double time = previous + MINECRAFT_TICK_SECONDS;
           time < next - EPSILON;
           time += MINECRAFT_TICK_SECONDS) {
@@ -191,15 +189,14 @@ public final class AnimationCompiler {
   }
 
   private static double vectorLength(Vec3 vector) {
-    return Math.sqrt(
-        vector.x() * vector.x() + vector.y() * vector.y() + vector.z() * vector.z());
+    return Math.sqrt(vector.x() * vector.x() + vector.y() * vector.y() + vector.z() * vector.z());
   }
 
   private static int ticksBetween(double previous, double next) {
     return Math.max(1, (int) Math.round((next - previous) / MINECRAFT_TICK_SECONDS));
   }
 
-  private static void addTime(TreeSet<Double> times, double time, double runtimeLength) {
+  private static void addTime(Set<Double> times, double time, double runtimeLength) {
     times.add(clampedTime(time, runtimeLength));
   }
 
