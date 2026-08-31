@@ -7,10 +7,8 @@ models-folder: models
 resource-pack-folder: resource_pack
 auto-generate-pack-on-reload: true
 render:
-  # Three ticks lets the client blend consecutive 20 TPS bone transforms instead of exposing
-  # individual server-tick steps. Existing configs using the old shipped value of 1 are migrated
-  # to 3 at runtime. Use 0 to disable transform interpolation or 2+ for an explicit custom window.
-  interpolation-duration: 3
+  # One tick matches the server pose cadence; Osmium restarts this interpolation on every update.
+  interpolation-duration: 1
   teleport-duration: 1
   view-range: 64.0
   shadow-radius: 0.0
