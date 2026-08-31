@@ -23,7 +23,7 @@ final class ChannelTest {
   void stepInterpolationHoldsPreviousPostValue() {
     Channel channel = new Channel(Vec3.ZERO);
     channel.add(new Keyframe(0.0, new Vec3(1, 2, 3), new Vec3(4, 5, 6), Interpolation.STEP));
-    channel.add(new Keyframe(1.0, new Vec3(10, 20, 30), Interpolation.LINEAR));
+    channel.add(new Keyframe(1.0, new Vec3(10, 20, 30), Interpolation.CATMULL_ROM));
 
     assertVec3(new Vec3(4, 5, 6), channel.sample(0.75));
   }
@@ -69,13 +69,14 @@ final class ChannelTest {
   }
 
   @Test
-  void loopingCatmullRomWrapsControlPointsAcrossSeam() {
+  void loopingCatmullRomUsesBlockbenchBoundaryControlPoints() {
     Channel channel = new Channel(Vec3.ZERO);
     channel.add(new Keyframe(0.0, Vec3.ZERO, Interpolation.CATMULL_ROM));
     channel.add(new Keyframe(1.0, new Vec3(10, 0, 0), Interpolation.CATMULL_ROM));
-    channel.add(new Keyframe(2.0, new Vec3(40, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(2.0, new Vec3(20, 0, 0), Interpolation.CATMULL_ROM));
+    channel.add(new Keyframe(3.0, new Vec3(100, 0, 0), Interpolation.CATMULL_ROM));
 
-    assertEquals(21.25, channel.sample(2.5, true, 3.0).x(), EPSILON);
+    assertEquals(3.125, channel.sample(0.5, true, 4.0).x(), EPSILON);
   }
 
   @Test
