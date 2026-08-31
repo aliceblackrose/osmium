@@ -279,7 +279,8 @@ public final class RuntimeModel {
               new RuntimePart(part, display),
               boneCaches.get(part.bone()),
               localTransform(part.bone(), part.cube()),
-              new Matrix4f()));
+              new Matrix4f(),
+              new Quaternionf()));
     }
   }
 
@@ -528,7 +529,7 @@ public final class RuntimeModel {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(rootLocation, cache.runtime().display(), transform);
+      applyDisplayTransform(rootLocation, cache, transform);
     }
   }
 
@@ -584,10 +585,11 @@ public final class RuntimeModel {
   }
 
   private static void applyDisplayTransform(
-      Location rootLocation, ItemDisplay display, Matrix4f transform) {
+      Location rootLocation, PartRenderCache cache, Matrix4f transform) {
+    ItemDisplay display = cache.runtime().display();
     display.teleport(rootLocation);
     if (DisplayTransform.canUseDirectTrs(transform)) {
-      display.setTransformation(DisplayTransform.directTrs(transform));
+      display.setTransformation(DisplayTransform.directTrs(transform, cache.previousRotation()));
     } else {
       display.setTransformationMatrix(transform);
     }
@@ -655,7 +657,11 @@ public final class RuntimeModel {
   }
 
   private record PartRenderCache(
-      RuntimePart runtime, BoneRenderCache bone, Matrix4f localTransform, Matrix4f transform) {}
+      RuntimePart runtime,
+      BoneRenderCache bone,
+      Matrix4f localTransform,
+      Matrix4f transform,
+      Quaternionf previousRotation) {}
 
   private record HitboxRenderCache(
       RuntimeHitbox runtime,
