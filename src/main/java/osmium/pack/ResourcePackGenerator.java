@@ -36,6 +36,7 @@ import osmium.model.Bone;
 import osmium.model.Cube;
 import osmium.model.Face;
 import osmium.model.ModelBlueprint;
+import osmium.model.PartPlacement;
 import osmium.model.RenderPart;
 import osmium.model.TextureAsset;
 import osmium.util.Names;
@@ -231,13 +232,21 @@ public final class ResourcePackGenerator {
     return numericTextureKeys.getOrDefault(texture, DEFAULT_TEXTURE_KEY);
   }
 
-  private static JsonObject display() {
+  private static JsonObject display(RenderPart renderPart) {
     JsonObject display = new JsonObject();
+    Vec3 itemTranslation =
+        PartPlacement.canBakeIntoItemModel(renderPart.cube())
+            ? PartPlacement.itemModelTranslation(renderPart.bone(), renderPart.cube())
+            : Vec3.ZERO;
 
     for (String context : DISPLAY_CONTEXTS) {
       JsonObject transform = new JsonObject();
       transform.add("rotation", numbers(0, 0, 0));
-      transform.add("translation", numbers(0, 0, 0));
+      transform.add(
+          "translation",
+          context.equals("fixed")
+              ? numbers(itemTranslation.x(), itemTranslation.y(), itemTranslation.z())
+              : numbers(0, 0, 0));
       transform.add("scale", numbers(1, 1, 1));
       display.add(context, transform);
     }
@@ -512,7 +521,7 @@ public final class ResourcePackGenerator {
     root.addProperty("ambientocclusion", false);
     root.add("textures", textures(model));
     root.add("elements", elements(renderPart.cube(), model, textureKeys));
-    root.add("display", display());
+    root.add("display", display(renderPart));
 
     writeJson(namespaceJsonAssetPath(MODELS_DIRECTORY, renderPart.modelPath()), root);
   }
