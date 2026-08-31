@@ -48,18 +48,38 @@ final class DisplayTransform {
   }
 
   static Transformation directTrs(Matrix4f matrix) {
-    return directTrs(matrix, null);
+    Vector3f translation = matrix.getTranslation(new Vector3f());
+    Quaternionf rotation = directRotation(matrix);
+    canonicalize(rotation);
+    Vector3f scale = matrix.getScale(new Vector3f());
+    return new Transformation(translation, rotation, scale, new Quaternionf());
   }
 
   static Transformation directTrs(Matrix4f matrix, Quaternionf previousRotation) {
     Vector3f translation = matrix.getTranslation(new Vector3f());
-    Quaternionf rotation = matrix.getUnnormalizedRotation(new Quaternionf()).normalize();
-    if (previousRotation != null) {
+    Quaternionf rotation = directRotation(matrix);
+    if (previousRotation == null) {
+      canonicalize(rotation);
+    } else {
       keepSameHemisphere(rotation, previousRotation);
       previousRotation.set(rotation);
     }
     Vector3f scale = matrix.getScale(new Vector3f());
     return new Transformation(translation, rotation, scale, new Quaternionf());
+  }
+
+  private static Quaternionf directRotation(Matrix4f matrix) {
+    return matrix.getUnnormalizedRotation(new Quaternionf()).normalize();
+  }
+
+  private static void canonicalize(Quaternionf rotation) {
+    if (rotation.w < 0
+        || (rotation.w == 0
+            && (rotation.x < 0
+                || (rotation.x == 0
+                    && (rotation.y < 0 || (rotation.y == 0 && rotation.z < 0)))))) {
+      rotation.set(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
+    }
   }
 
   private static void keepSameHemisphere(Quaternionf rotation, Quaternionf previousRotation) {
