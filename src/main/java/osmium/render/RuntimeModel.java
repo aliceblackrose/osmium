@@ -581,7 +581,11 @@ public final class RuntimeModel {
   private static void applyDisplayTransform(
       Location rootLocation, ItemDisplay display, Matrix4f transform) {
     display.teleport(rootLocation);
-    display.setTransformationMatrix(transform);
+    if (DisplayTransform.canUseDirectTrs(transform)) {
+      display.setTransformation(DisplayTransform.directTrs(transform));
+    } else {
+      display.setTransformationMatrix(transform);
+    }
     display.setInterpolationDelay(0);
   }
 
