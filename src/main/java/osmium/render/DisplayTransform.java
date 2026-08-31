@@ -76,8 +76,7 @@ final class DisplayTransform {
     if (rotation.w < 0
         || (rotation.w == 0
             && (rotation.x < 0
-                || (rotation.x == 0
-                    && (rotation.y < 0 || (rotation.y == 0 && rotation.z < 0)))))) {
+                || (rotation.x == 0 && (rotation.y < 0 || (rotation.y == 0 && rotation.z < 0)))))) {
       rotation.set(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
     }
   }
