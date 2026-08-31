@@ -75,6 +75,7 @@ public record Cube(
       return 0;
     }
 
-    return (MIN_RENDER_THICKNESS - finalThickness) * 0.5;
+    double padding = (MIN_RENDER_THICKNESS - finalThickness) * 0.5;
+    return size < 0 ? -padding : padding;
   }
 }
