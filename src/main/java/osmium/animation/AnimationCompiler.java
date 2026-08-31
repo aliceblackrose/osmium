@@ -139,17 +139,15 @@ public final class AnimationCompiler {
       double previous = baseTimes.get(index - 1);
       double next = baseTimes.get(index);
       double maximumRotation = maximumHierarchicalRotation(animation, rootBone, previous, next);
-      int subdivisions = (int) Math.ceil(maximumRotation / MAX_ROTATION_STEP_DEGREES);
-      if (subdivisions < 2) {
+      if (maximumRotation <= MAX_ROTATION_STEP_DEGREES) {
         continue;
       }
 
-      double interval = Math.max((next - previous) / subdivisions, MINECRAFT_TICK_SECONDS);
-      for (int step = 1; step < subdivisions; step++) {
-        double time = previous + interval * step;
-        if (next - time < MINECRAFT_TICK_SECONDS - EPSILON) {
-          break;
-        }
+      // BetterModel subdivides high angular deltas. Osmium cannot safely send Bukkit display updates
+      // faster than a server tick, so use every transport slot available inside the risky interval.
+      for (double time = previous + MINECRAFT_TICK_SECONDS;
+          time < next - EPSILON;
+          time += MINECRAFT_TICK_SECONDS) {
         addTime(frameTimes, time, runtimeLength);
       }
     }
