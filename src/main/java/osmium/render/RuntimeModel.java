@@ -539,7 +539,8 @@ public final class RuntimeModel {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(rootLocation, cache.runtime().display(), transform, interpolationDuration);
+      applyDisplayTransform(
+          rootLocation, cache.runtime().display(), transform, interpolationDuration);
     }
   }
 
