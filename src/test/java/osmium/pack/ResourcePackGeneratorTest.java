@@ -54,7 +54,7 @@ final class ResourcePackGeneratorTest {
   }
 
   @Test
-  void zeroThicknessEyePlaneOnlyExpandsItsFlatAxis() throws Exception {
+  void zeroThicknessEyePlaneRemainsAuthoredFlatGeometry() throws Exception {
     Bone eye = new Bone("eye", "eye", "eye-bone", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
     Cube plane =
         new Cube(
@@ -123,7 +123,7 @@ final class ResourcePackGeneratorTest {
 
     assertEquals(2.0, toX - fromX, 1.0E-9);
     assertEquals(1.0, toY - fromY, 1.0E-9);
-    assertEquals(1.0 / 64.0, toZ - fromZ, 2.0E-6);
+    assertEquals(0.0, toZ - fromZ, 1.0E-9);
     assertEquals(8.0, (fromX + toX) * 0.5, 1.0E-9);
     assertEquals(8.0, (fromY + toY) * 0.5, 1.0E-9);
     assertEquals(8.0, (fromZ + toZ) * 0.5, 1.0E-9);
