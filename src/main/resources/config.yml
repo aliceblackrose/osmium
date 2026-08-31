@@ -7,7 +7,9 @@ models-folder: models
 resource-pack-folder: resource_pack
 auto-generate-pack-on-reload: true
 render:
-  interpolation-duration: 1
+  # Three ticks lets the client blend consecutive 20 TPS bone transforms instead of exposing
+  # individual server-tick steps. Lower this if you prefer less visual latency over smoothness.
+  interpolation-duration: 3
   teleport-duration: 1
   view-range: 64.0
   shadow-radius: 0.0
