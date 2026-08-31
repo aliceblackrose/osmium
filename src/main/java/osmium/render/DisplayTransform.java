@@ -19,17 +19,11 @@ final class DisplayTransform {
    */
   static boolean canUseDirectTrs(Matrix4f matrix) {
     float xLengthSquared =
-        matrix.m00() * matrix.m00()
-            + matrix.m01() * matrix.m01()
-            + matrix.m02() * matrix.m02();
+        matrix.m00() * matrix.m00() + matrix.m01() * matrix.m01() + matrix.m02() * matrix.m02();
     float yLengthSquared =
-        matrix.m10() * matrix.m10()
-            + matrix.m11() * matrix.m11()
-            + matrix.m12() * matrix.m12();
+        matrix.m10() * matrix.m10() + matrix.m11() * matrix.m11() + matrix.m12() * matrix.m12();
     float zLengthSquared =
-        matrix.m20() * matrix.m20()
-            + matrix.m21() * matrix.m21()
-            + matrix.m22() * matrix.m22();
+        matrix.m20() * matrix.m20() + matrix.m21() * matrix.m21() + matrix.m22() * matrix.m22();
 
     if (xLengthSquared <= MINIMUM_BASIS_LENGTH_SQUARED
         || yLengthSquared <= MINIMUM_BASIS_LENGTH_SQUARED
@@ -37,9 +31,12 @@ final class DisplayTransform {
       return false;
     }
 
-    float xy = matrix.m00() * matrix.m10() + matrix.m01() * matrix.m11() + matrix.m02() * matrix.m12();
-    float xz = matrix.m00() * matrix.m20() + matrix.m01() * matrix.m21() + matrix.m02() * matrix.m22();
-    float yz = matrix.m10() * matrix.m20() + matrix.m11() * matrix.m21() + matrix.m12() * matrix.m22();
+    float xy =
+        matrix.m00() * matrix.m10() + matrix.m01() * matrix.m11() + matrix.m02() * matrix.m12();
+    float xz =
+        matrix.m00() * matrix.m20() + matrix.m01() * matrix.m21() + matrix.m02() * matrix.m22();
+    float yz =
+        matrix.m10() * matrix.m20() + matrix.m11() * matrix.m21() + matrix.m12() * matrix.m22();
 
     if (!approximatelyOrthogonal(xy, xLengthSquared, yLengthSquared)
         || !approximatelyOrthogonal(xz, xLengthSquared, zLengthSquared)
