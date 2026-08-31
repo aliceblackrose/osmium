@@ -51,7 +51,8 @@ public final class AnimationCompiler {
       Map<String, BoneTimeline.Sample> poses = new LinkedHashMap<>();
       for (Map.Entry<String, BoneTimeline> entry : animation.timelines().entrySet()) {
         poses.put(
-            entry.getKey(), entry.getValue().sample(sampleTime, animation.loop(), animation.length()));
+            entry.getKey(),
+            entry.getValue().sample(sampleTime, animation.loop(), animation.length()));
       }
 
       int durationTicks = index == 0 ? 0 : ticksBetween(previousTime, time);
@@ -188,13 +189,7 @@ public final class AnimationCompiler {
           Math.max(
               maximum,
               maximumHierarchicalRotation(
-                  animation,
-                  child,
-                  previousTime,
-                  nextTime,
-                  runtimeLength,
-                  accumulated,
-                  maximum));
+                  animation, child, previousTime, nextTime, runtimeLength, accumulated, maximum));
     }
     return maximum;
   }
