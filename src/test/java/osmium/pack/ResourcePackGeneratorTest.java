@@ -107,12 +107,8 @@ final class ResourcePackGeneratorTest {
             .resolve("item")
             .resolve("bedwars_npc")
             .resolve("eye_eye_0.json");
-    JsonObject element =
-        JsonParser.parseString(Files.readString(generatedModel))
-            .getAsJsonObject()
-            .getAsJsonArray("elements")
-            .get(0)
-            .getAsJsonObject();
+    JsonObject generated = JsonParser.parseString(Files.readString(generatedModel)).getAsJsonObject();
+    JsonObject element = generated.getAsJsonArray("elements").get(0).getAsJsonObject();
 
     double fromX = element.getAsJsonArray("from").get(0).getAsDouble();
     double fromY = element.getAsJsonArray("from").get(1).getAsDouble();
@@ -131,5 +127,10 @@ final class ResourcePackGeneratorTest {
     JsonObject north = element.getAsJsonObject("faces").getAsJsonObject("north");
     assertEquals(0.0, north.getAsJsonArray("uv").get(0).getAsDouble(), 1.0E-9);
     assertEquals(3.0 / 128.0 * 16.0, north.getAsJsonArray("uv").get(1).getAsDouble(), 1.0E-9);
+
+    JsonObject fixed = generated.getAsJsonObject("display").getAsJsonObject("fixed");
+    assertEquals(-22.0, fixed.getAsJsonArray("translation").get(0).getAsDouble(), 1.0E-9);
+    assertEquals(27.5, fixed.getAsJsonArray("translation").get(1).getAsDouble(), 1.0E-9);
+    assertEquals(4.025, fixed.getAsJsonArray("translation").get(2).getAsDouble(), 1.0E-9);
   }
 }
