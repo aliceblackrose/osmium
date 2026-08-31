@@ -8,6 +8,8 @@ import org.bukkit.util.Transformation;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.junit.jupiter.api.Test;
+import osmium.math.Transforms;
+import osmium.math.Vec3;
 
 final class DisplayTransformTest {
   @Test
@@ -49,6 +51,28 @@ final class DisplayTransformTest {
     assertEquals(stabilized.y, previous.y, 1.0E-6F);
     assertEquals(stabilized.z, previous.z, 1.0E-6F);
     assertEquals(stabilized.w, previous.w, 1.0E-6F);
+  }
+
+  @Test
+  void bedwarsNpcArmRotationsKeepContinuousQuaternionHemisphere() {
+    Vec3[] rotations = {
+      new Vec3(-191.03631062055638, 3.236484601032771, -36.76374144983765),
+      new Vec3(-86.25543941798836, -14.28647650479048, -29.722569083365904),
+      new Vec3(-86.26, -14.29, -29.72),
+      new Vec3(-191.03631062055638, 3.236484601032771, -36.76374144983765),
+      new Vec3(-78.75543941798836, -14.28647650479048, -29.722569083365904)
+    };
+
+    Quaternionf previous = new Quaternionf();
+    Quaternionf last = new Quaternionf(previous);
+
+    for (Vec3 rotation : rotations) {
+      Matrix4f matrix = new Matrix4f().rotate(Transforms.animationRotation(rotation));
+      Quaternionf current = DisplayTransform.directTrs(matrix, previous).getLeftRotation();
+
+      assertTrue(dot(last, current) >= 0.0F);
+      last.set(current);
+    }
   }
 
   @Test
