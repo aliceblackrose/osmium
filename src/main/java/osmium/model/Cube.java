@@ -15,19 +15,20 @@ public record Cube(
     boolean visible,
     Map<String, Face> faces) {
   /**
-   * Minimum generated thickness for renderable geometry, in Blockbench model units.
+   * Minimum final thickness for renderable geometry, in Blockbench model units.
    *
-   * <p>Exactly-flat and extremely thin planes can occupy effectively the same depth as the surface
-   * below them, which causes the client depth buffer to alternate which face wins. 1/64 of a model
-   * unit is only 1/1024 of a block, so this gives overlays such as eyes stable depth without making
-   * them visibly thick.
+   * <p>Exactly-flat planes can share the same depth as nearby surfaces and z-fight. Expanding only
+   * the flat axis keeps adjacent eye/overlay rectangles from growing into each other on their X/Y
+   * axes while still giving the depth buffer a stable surface.
    */
   private static final double MIN_RENDER_THICKNESS = 1.0 / 64.0;
 
   public Cube {
     faces = new LinkedHashMap<>(faces);
     if (visible && !faces.isEmpty()) {
-      inflate = Math.max(inflate, minimumDepthInflation(from, to));
+      Vec3 padding = minimumAxisPadding(from, to, inflate);
+      from = new Vec3(from.x() - padding.x(), from.y() - padding.y(), from.z() - padding.z());
+      to = new Vec3(to.x() + padding.x(), to.y() + padding.y(), to.z() + padding.z());
     }
   }
 
@@ -60,14 +61,20 @@ public record Cube(
     return visible && !faces.isEmpty();
   }
 
-  private static double minimumDepthInflation(Vec3 from, Vec3 to) {
+  private static Vec3 minimumAxisPadding(Vec3 from, Vec3 to, double inflation) {
     Vec3 size = to.subtract(from);
-    double smallestAxis =
-        Math.min(Math.abs(size.x()), Math.min(Math.abs(size.y()), Math.abs(size.z())));
-    if (smallestAxis >= MIN_RENDER_THICKNESS) {
+    return new Vec3(
+        minimumAxisPadding(size.x(), inflation),
+        minimumAxisPadding(size.y(), inflation),
+        minimumAxisPadding(size.z(), inflation));
+  }
+
+  private static double minimumAxisPadding(double size, double inflation) {
+    double finalThickness = Math.abs(size) + Math.max(0, inflation) * 2;
+    if (finalThickness >= MIN_RENDER_THICKNESS) {
       return 0;
     }
 
-    return (MIN_RENDER_THICKNESS - smallestAxis) * 0.5;
+    return (MIN_RENDER_THICKNESS - finalThickness) * 0.5;
   }
 }
