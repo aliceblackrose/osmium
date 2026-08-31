@@ -517,7 +517,7 @@ public final class RuntimeModel {
       return DEFAULT_SAMPLE;
     }
 
-    return timeline.sample(animationTime);
+    return timeline.sample(animationTime, animation.loop(), animation.length());
   }
 
   private void updateParts(World world) {
@@ -577,6 +577,7 @@ public final class RuntimeModel {
     display.teleport(new Location(world, position.x, position.y, position.z, 0, 0));
     display.setTransformation(
         new Transformation(new Vector3f(), rotation, scale, new Quaternionf()));
+    display.setInterpolationDelay(0);
   }
 
   private void showParts(Player player) {
