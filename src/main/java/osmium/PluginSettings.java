@@ -31,8 +31,7 @@ public record PluginSettings(
 
   private static final int DEFAULT_CUSTOM_MODEL_DATA_START = 100_000;
   private static final int DEFAULT_PACK_FORMAT = 84;
-  private static final int LEGACY_DEFAULT_INTERPOLATION_DURATION = 1;
-  private static final int DEFAULT_INTERPOLATION_DURATION = 3;
+  private static final int DEFAULT_INTERPOLATION_DURATION = 1;
   private static final int DEFAULT_TELEPORT_DURATION = 1;
   private static final int DEFAULT_BRIGHTNESS = 15;
 
@@ -58,7 +57,7 @@ public record PluginSettings(
         configuredPath(dataFolder, config, "models-folder", DEFAULT_MODELS_FOLDER),
         configuredPath(dataFolder, config, "resource-pack-folder", DEFAULT_RESOURCE_PACK_FOLDER),
         config.getBoolean("auto-generate-pack-on-reload", true),
-        interpolationDuration(config),
+        nonNegativeInt(config, "render.interpolation-duration", DEFAULT_INTERPOLATION_DURATION),
         nonNegativeInt(config, "render.teleport-duration", DEFAULT_TELEPORT_DURATION),
         positiveFloat(config),
         nonNegativeFloat(config, "render.shadow-radius", DEFAULT_SHADOW_RADIUS),
@@ -89,18 +88,6 @@ public record PluginSettings(
 
   private static int packFormat(FileConfiguration config) {
     return Math.max(1, config.getInt("pack-format", DEFAULT_PACK_FORMAT));
-  }
-
-  private static int interpolationDuration(FileConfiguration config) {
-    return normalizeInterpolationDuration(
-        config.getInt("render.interpolation-duration", DEFAULT_INTERPOLATION_DURATION));
-  }
-
-  static int normalizeInterpolationDuration(int configuredDuration) {
-    int duration = Math.max(0, configuredDuration);
-    return duration == LEGACY_DEFAULT_INTERPOLATION_DURATION
-        ? DEFAULT_INTERPOLATION_DURATION
-        : duration;
   }
 
   private static Path configuredPath(
