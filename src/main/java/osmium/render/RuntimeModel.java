@@ -22,6 +22,7 @@ import osmium.PluginSettings;
 import osmium.animation.Animation;
 import osmium.animation.AnimationState;
 import osmium.animation.BoneTimeline;
+import osmium.animation.CompiledAnimation;
 import osmium.math.Transforms;
 import osmium.math.Vec3;
 import osmium.model.Bone;
@@ -82,6 +83,7 @@ public final class RuntimeModel {
   private boolean deathAnimationStarted;
   private boolean frozen;
   private long actionEndsAtNanos;
+  private float lastRenderedYawRadians = Float.NaN;
 
   public RuntimeModel(
       int id,
@@ -111,6 +113,7 @@ public final class RuntimeModel {
     this.deathAnimation = firstAnimation(DEATH_ANIMATIONS);
 
     initializeBoneCaches(blueprint.root());
+    animationState.configure(blueprint.root(), settings.interpolationDuration());
     setupBaseEntity();
     spawnParts();
     spawnHitboxes();
@@ -452,11 +455,25 @@ public final class RuntimeModel {
       return;
     }
 
-    Animation animation = animationState.animation();
-    double animationTime = animationState.time();
-    applyBoneTransform(
-        blueprint.root(), updateRootTransform(currentYawRadians), animation, animationTime);
-    updateParts(currentLocation);
+    boolean yawChanged = Float.compare(currentYawRadians, lastRenderedYawRadians) != 0;
+    boolean transformDirty = animationState.dirty() || yawChanged;
+    if (transformDirty) {
+      CompiledAnimation.Frame animationFrame = animationState.frame();
+      applyBoneTransform(
+          blueprint.root(), updateRootTransform(currentYawRadians), animationFrame);
+
+      int interpolationDuration = animationState.interpolationDurationTicks();
+      if (animationFrame != null && animationFrame.skipInterpolation()) {
+        interpolationDuration = 0;
+      }
+
+      updateParts(currentLocation, interpolationDuration);
+      lastRenderedYawRadians = currentYawRadians;
+      animationState.markRendered();
+    } else {
+      teleportParts(currentLocation);
+    }
+
     updateHitboxes(world, currentLocation);
   }
 
@@ -471,13 +488,13 @@ public final class RuntimeModel {
   }
 
   private void applyBoneTransform(
-      Bone bone, Matrix4f parentTransform, Animation animation, double animationTime) {
+      Bone bone, Matrix4f parentTransform, CompiledAnimation.Frame animationFrame) {
     BoneRenderCache cache = boneCaches.get(bone);
     Matrix4f boneTransform =
-        updateBoneTransform(cache, bone, parentTransform, sample(animation, bone, animationTime));
+        updateBoneTransform(cache, bone, parentTransform, sample(animationFrame, bone));
 
     for (Bone child : bone.children()) {
-      applyBoneTransform(child, boneTransform, animation, animationTime);
+      applyBoneTransform(child, boneTransform, animationFrame);
     }
   }
 
@@ -510,24 +527,27 @@ public final class RuntimeModel {
         : (float) value;
   }
 
-  private static BoneTimeline.Sample sample(Animation animation, Bone bone, double animationTime) {
-    if (animation == null) {
+  private static BoneTimeline.Sample sample(CompiledAnimation.Frame animationFrame, Bone bone) {
+    if (animationFrame == null) {
       return DEFAULT_SAMPLE;
     }
 
-    BoneTimeline timeline = animation.timelines().get(bone.name());
-    if (timeline == null) {
-      return DEFAULT_SAMPLE;
-    }
-
-    return timeline.sample(animationTime, animation.loop(), animation.length());
+    BoneTimeline.Sample sample = animationFrame.pose(bone.name());
+    return sample == null ? DEFAULT_SAMPLE : sample;
   }
 
-  private void updateParts(Location rootLocation) {
+  private void updateParts(Location rootLocation, int interpolationDuration) {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(rootLocation, cache.runtime().display(), transform);
+      applyDisplayTransform(
+          rootLocation, cache.runtime().display(), transform, interpolationDuration);
+    }
+  }
+
+  private void teleportParts(Location rootLocation) {
+    for (PartRenderCache cache : parts) {
+      cache.runtime().display().teleport(rootLocation);
     }
   }
 
@@ -579,8 +599,12 @@ public final class RuntimeModel {
   }
 
   private static void applyDisplayTransform(
-      Location rootLocation, ItemDisplay display, Matrix4f transform) {
+      Location rootLocation,
+      ItemDisplay display,
+      Matrix4f transform,
+      int interpolationDuration) {
     display.teleport(rootLocation);
+    display.setInterpolationDuration(Math.max(0, interpolationDuration));
     if (DisplayTransform.canUseDirectTrs(transform)) {
       display.setTransformation(DisplayTransform.directTrs(transform));
     } else {
