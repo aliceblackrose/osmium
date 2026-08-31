@@ -459,8 +459,7 @@ public final class RuntimeModel {
     boolean transformDirty = animationState.dirty() || yawChanged;
     if (transformDirty) {
       CompiledAnimation.Frame animationFrame = animationState.frame();
-      applyBoneTransform(
-          blueprint.root(), updateRootTransform(currentYawRadians), animationFrame);
+      applyBoneTransform(blueprint.root(), updateRootTransform(currentYawRadians), animationFrame);
 
       int interpolationDuration = animationState.interpolationDurationTicks();
       if (animationFrame != null && animationFrame.skipInterpolation()) {
@@ -540,8 +539,7 @@ public final class RuntimeModel {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(
-          rootLocation, cache.runtime().display(), transform, interpolationDuration);
+      applyDisplayTransform(rootLocation, cache.runtime().display(), transform, interpolationDuration);
     }
   }
 
@@ -599,10 +597,7 @@ public final class RuntimeModel {
   }
 
   private static void applyDisplayTransform(
-      Location rootLocation,
-      ItemDisplay display,
-      Matrix4f transform,
-      int interpolationDuration) {
+      Location rootLocation, ItemDisplay display, Matrix4f transform, int interpolationDuration) {
     display.teleport(rootLocation);
     display.setInterpolationDuration(Math.max(0, interpolationDuration));
     if (DisplayTransform.canUseDirectTrs(transform)) {
