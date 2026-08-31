@@ -1,23 +1,34 @@
 package osmium.animation;
 
-/** Playback state advanced at the same 20 TPS cadence used to transmit display poses. */
+import java.util.List;
+
+/** Playback state for a precompiled animation frame stream. */
 public final class AnimationState {
-  private static final double TICKS_PER_SECOND = 20.0;
+  private static final double FRAME_TIME_EPSILON = 1.0E-6D;
 
-  private Animation animation;
-  private long elapsedTicks;
+  private CompiledAnimation animation;
+  private int frameIndex;
+  private int ticksUntilNext;
+  private boolean complete;
+  private boolean dirty;
 
-  public void play(Animation animation) {
+  public void play(CompiledAnimation animation) {
     this.animation = animation;
-    elapsedTicks = 0;
+    frameIndex = 0;
+    complete = animation.frames().isEmpty();
+    dirty = !complete;
+    ticksUntilNext = complete ? 0 : durationToNextFrame();
   }
 
   public void stop() {
     animation = null;
-    elapsedTicks = 0;
+    frameIndex = 0;
+    ticksUntilNext = 0;
+    complete = false;
+    dirty = false;
   }
 
-  public Animation animation() {
+  public CompiledAnimation animation() {
     return animation;
   }
 
@@ -26,29 +37,75 @@ public final class AnimationState {
   }
 
   public boolean complete() {
-    Animation currentAnimation = animation;
-    return currentAnimation != null
-        && !currentAnimation.loop()
-        && elapsedSeconds() >= currentAnimation.length();
+    return animation != null && complete;
   }
 
-  public double time() {
-    Animation currentAnimation = animation;
-    if (currentAnimation == null) {
+  public CompiledAnimation.Frame frame() {
+    if (animation == null || animation.frames().isEmpty()) {
+      return null;
+    }
+    return animation.frames().get(frameIndex);
+  }
+
+  /** True when a new local pose needs to be transmitted to display entities. */
+  public boolean dirty() {
+    return dirty;
+  }
+
+  public void markRendered() {
+    dirty = false;
+  }
+
+  /** Advances one Minecraft server tick through the compiled frame stream. */
+  public void advance() {
+    if (animation == null || complete || animation.frames().isEmpty()) {
+      return;
+    }
+
+    List<CompiledAnimation.Frame> frames = animation.frames();
+    int lastIndex = frames.size() - 1;
+    if (frameIndex >= lastIndex) {
+      if (animation.loop()) {
+        frameIndex = 0;
+        dirty = true;
+        ticksUntilNext = durationToNextFrame();
+      } else {
+        complete = true;
+      }
+      return;
+    }
+
+    if (ticksUntilNext > 1) {
+      ticksUntilNext--;
+      return;
+    }
+
+    int nextIndex = frameIndex + 1;
+    if (animation.loop()
+        && nextIndex == lastIndex
+        && Math.abs(frames.get(lastIndex).time() - animation.length()) <= FRAME_TIME_EPSILON) {
+      // The terminal length frame is a compile-time seam marker. At exactly animation.length a
+      // looping animation is back at frame zero, so do not transmit an extra duplicate terminal pose.
+      frameIndex = 0;
+    } else {
+      frameIndex = nextIndex;
+    }
+
+    dirty = true;
+    ticksUntilNext = durationToNextFrame();
+  }
+
+  private int durationToNextFrame() {
+    if (animation == null || animation.frames().isEmpty()) {
       return 0;
     }
 
-    return currentAnimation.normalize(elapsedSeconds());
-  }
-
-  public double elapsedSeconds() {
-    return animation == null ? 0 : elapsedTicks / TICKS_PER_SECOND;
-  }
-
-  /** Advances exactly one server animation frame (1/20 second). */
-  public void advance() {
-    if (animation != null) {
-      elapsedTicks++;
+    List<CompiledAnimation.Frame> frames = animation.frames();
+    int nextIndex = frameIndex + 1;
+    if (nextIndex < frames.size()) {
+      return Math.max(1, frames.get(nextIndex).durationTicks());
     }
+
+    return animation.loop() ? 1 : 0;
   }
 }
