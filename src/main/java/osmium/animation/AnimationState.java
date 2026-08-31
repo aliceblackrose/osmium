@@ -1,29 +1,54 @@
 package osmium.animation;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import osmium.model.Bone;
 
-/** Playback state for a precompiled animation frame stream. */
+/** Playback state backed by cached, precompiled animation frame streams. */
 public final class AnimationState {
   private static final double FRAME_TIME_EPSILON = 1.0E-6D;
 
-  private CompiledAnimation animation;
+  private final Map<Animation, CompiledAnimation> compiledAnimations = new IdentityHashMap<>();
+
+  private Bone rootBone;
+  private int compileInterpolationTicks = 1;
+  private Animation animation;
+  private CompiledAnimation compiledAnimation;
   private int frameIndex;
   private int ticksUntilNext;
   private int interpolationDurationTicks;
   private boolean complete;
   private boolean dirty;
 
-  public void play(CompiledAnimation animation) {
+  /** Configures the skeleton and maximum client interpolation interval used during compilation. */
+  public void configure(Bone rootBone, int interpolationDurationTicks) {
+    this.rootBone = rootBone;
+    compileInterpolationTicks = Math.max(0, interpolationDurationTicks);
+    compiledAnimations.clear();
+    stop();
+  }
+
+  public void play(Animation animation) {
+    if (rootBone == null) {
+      throw new IllegalStateException("AnimationState must be configured before playback.");
+    }
+
     this.animation = animation;
+    compiledAnimation =
+        compiledAnimations.computeIfAbsent(
+            animation,
+            value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
     frameIndex = 0;
     interpolationDurationTicks = 0;
-    complete = animation.frames().isEmpty();
+    complete = compiledAnimation.frames().isEmpty();
     dirty = !complete;
     ticksUntilNext = complete ? 0 : durationToNextFrame();
   }
 
   public void stop() {
     animation = null;
+    compiledAnimation = null;
     frameIndex = 0;
     ticksUntilNext = 0;
     interpolationDurationTicks = 0;
@@ -31,8 +56,12 @@ public final class AnimationState {
     dirty = false;
   }
 
-  public CompiledAnimation animation() {
+  public Animation animation() {
     return animation;
+  }
+
+  public CompiledAnimation compiledAnimation() {
+    return compiledAnimation;
   }
 
   public boolean playing(String name) {
@@ -44,10 +73,15 @@ public final class AnimationState {
   }
 
   public CompiledAnimation.Frame frame() {
-    if (animation == null || animation.frames().isEmpty()) {
+    if (compiledAnimation == null || compiledAnimation.frames().isEmpty()) {
       return null;
     }
-    return animation.frames().get(frameIndex);
+    return compiledAnimation.frames().get(frameIndex);
+  }
+
+  public double time() {
+    CompiledAnimation.Frame currentFrame = frame();
+    return currentFrame == null ? 0.0D : currentFrame.time();
   }
 
   /** Duration Minecraft should use when interpolating from the previous pose to this frame. */
@@ -66,14 +100,14 @@ public final class AnimationState {
 
   /** Advances one Minecraft server tick through the compiled frame stream. */
   public void advance() {
-    if (animation == null || complete || animation.frames().isEmpty()) {
+    if (compiledAnimation == null || complete || compiledAnimation.frames().isEmpty()) {
       return;
     }
 
-    List<CompiledAnimation.Frame> frames = animation.frames();
+    List<CompiledAnimation.Frame> frames = compiledAnimation.frames();
     int lastIndex = frames.size() - 1;
     if (frameIndex >= lastIndex) {
-      if (animation.loop()) {
+      if (compiledAnimation.loop()) {
         interpolationDurationTicks = 1;
         frameIndex = 0;
         dirty = true;
@@ -90,11 +124,12 @@ public final class AnimationState {
     }
 
     int nextIndex = frameIndex + 1;
-    if (animation.loop()
+    if (compiledAnimation.loop()
         && nextIndex == lastIndex
-        && Math.abs(frames.get(lastIndex).time() - animation.length()) <= FRAME_TIME_EPSILON) {
-      // The terminal length frame is a compile-time seam marker. Its duration is the duration of the
-      // transition from the last visible frame back to frame zero.
+        && Math.abs(frames.get(lastIndex).time() - compiledAnimation.length())
+            <= FRAME_TIME_EPSILON) {
+      // The terminal length frame is a compile-time seam marker. Its duration is the transition
+      // duration from the last visible frame back to frame zero.
       interpolationDurationTicks = Math.max(1, frames.get(lastIndex).durationTicks());
       frameIndex = 0;
     } else {
@@ -107,16 +142,16 @@ public final class AnimationState {
   }
 
   private int durationToNextFrame() {
-    if (animation == null || animation.frames().isEmpty()) {
+    if (compiledAnimation == null || compiledAnimation.frames().isEmpty()) {
       return 0;
     }
 
-    List<CompiledAnimation.Frame> frames = animation.frames();
+    List<CompiledAnimation.Frame> frames = compiledAnimation.frames();
     int nextIndex = frameIndex + 1;
     if (nextIndex < frames.size()) {
       return Math.max(1, frames.get(nextIndex).durationTicks());
     }
 
-    return animation.loop() ? 1 : 0;
+    return compiledAnimation.loop() ? 1 : 0;
   }
 }
