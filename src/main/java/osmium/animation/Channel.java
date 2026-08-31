@@ -20,10 +20,32 @@ public final class Channel {
   }
 
   public Vec3 sample(double time) {
+    return sample(time, false, 0);
+  }
+
+  /** Samples this channel using Blockbench's loop-aware neighboring-keyframe semantics. */
+  public Vec3 sample(double time, boolean loop, double animationLength) {
     if (frames.isEmpty()) {
       return fallback;
     }
 
+    if (frames.size() == 1) {
+      Keyframe frame = frames.getFirst();
+      return time <= frame.time() ? frame.pre() : frame.post();
+    }
+
+    if (loop && animationLength > MIN_SEGMENT_DURATION) {
+      double normalizedTime = time % animationLength;
+      if (normalizedTime < 0) {
+        normalizedTime += animationLength;
+      }
+      return sampleLooping(normalizedTime, animationLength);
+    }
+
+    return sampleOnce(time);
+  }
+
+  private Vec3 sampleOnce(double time) {
     Keyframe firstFrame = frames.getFirst();
     if (time <= firstFrame.time()) {
       return firstFrame.pre();
@@ -32,11 +54,51 @@ public final class Channel {
     for (int index = 1; index < frames.size(); index++) {
       Keyframe nextFrame = frames.get(index);
       if (time <= nextFrame.time()) {
-        return sampleBetween(index - 1, index, time);
+        return sampleBetween(index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
       }
     }
 
     return frames.getLast().post();
+  }
+
+  private Vec3 sampleLooping(double time, double animationLength) {
+    Keyframe firstFrame = frames.getFirst();
+    Keyframe lastFrame = frames.getLast();
+
+    if (time == firstFrame.time()) {
+      return firstFrame.pre();
+    }
+
+    if (time < firstFrame.time()) {
+      return sampleBetween(
+          frames.size() - 1,
+          0,
+          time,
+          lastFrame.time() - animationLength,
+          firstFrame.time(),
+          true);
+    }
+
+    for (int index = 1; index < frames.size(); index++) {
+      Keyframe nextFrame = frames.get(index);
+      if (time <= nextFrame.time()) {
+        return sampleBetween(
+            index - 1,
+            index,
+            time,
+            frames.get(index - 1).time(),
+            nextFrame.time(),
+            true);
+      }
+    }
+
+    return sampleBetween(
+        frames.size() - 1,
+        0,
+        time,
+        lastFrame.time(),
+        firstFrame.time() + animationLength,
+        true);
   }
 
   private int insertionIndex(Keyframe frame) {
@@ -55,34 +117,75 @@ public final class Channel {
     return low;
   }
 
-  private Vec3 sampleBetween(int previousIndex, int nextIndex, double time) {
+  private Vec3 sampleBetween(
+      int previousIndex,
+      int nextIndex,
+      double time,
+      double previousTime,
+      double nextTime,
+      boolean loop) {
     Keyframe previousFrame = frames.get(previousIndex);
     Keyframe nextFrame = frames.get(nextIndex);
+    double amount = normalizedAmount(previousTime, nextTime, time);
+    Interpolation interpolation = interpolation(previousFrame, nextFrame);
 
-    if (previousFrame.interpolation() == Interpolation.STEP) {
-      return previousFrame.post();
-    }
-
-    double amount = normalizedAmount(previousFrame, nextFrame, time);
-
-    return switch (previousFrame.interpolation()) {
-      case CATMULL_ROM -> sampleCatmullRom(previousIndex, nextIndex, amount);
-      case BEZIER -> sampleBezier(previousFrame, nextFrame, time);
+    return switch (interpolation) {
+      case CATMULL_ROM -> sampleCatmullRom(previousIndex, nextIndex, amount, loop);
+      case BEZIER -> sampleBezier(previousFrame, nextFrame, time, previousTime, nextTime);
       case SMOOTH -> Vec3.lerp(previousFrame.post(), nextFrame.pre(), smoothstep(amount));
-      case LINEAR, STEP -> Vec3.lerp(previousFrame.post(), nextFrame.pre(), amount);
+      case LINEAR -> Vec3.lerp(previousFrame.post(), nextFrame.pre(), amount);
+      case STEP -> previousFrame.post();
     };
   }
 
-  private Vec3 sampleCatmullRom(int previousIndex, int nextIndex, double amount) {
+  private static Interpolation interpolation(Keyframe previousFrame, Keyframe nextFrame) {
+    Interpolation previous = previousFrame.interpolation();
+    Interpolation next = nextFrame.interpolation();
+
+    if (previous == Interpolation.SMOOTH) {
+      return Interpolation.SMOOTH;
+    }
+
+    if (previous == Interpolation.LINEAR
+        && (next == Interpolation.LINEAR || next == Interpolation.STEP)) {
+      return Interpolation.LINEAR;
+    }
+
+    if (previous == Interpolation.CATMULL_ROM || next == Interpolation.CATMULL_ROM) {
+      return Interpolation.CATMULL_ROM;
+    }
+
+    if (previous == Interpolation.BEZIER || next == Interpolation.BEZIER) {
+      return Interpolation.BEZIER;
+    }
+
+    return previous == Interpolation.STEP ? Interpolation.STEP : Interpolation.LINEAR;
+  }
+
+  private Vec3 sampleCatmullRom(
+      int previousIndex, int nextIndex, double amount, boolean loop) {
     Vec3 p1 = frames.get(previousIndex).post();
     Vec3 p2 = frames.get(nextIndex).pre();
-    Vec3 p0 = previousIndex > 0 ? frames.get(previousIndex - 1).post() : p1;
-    Vec3 p3 = nextIndex + 1 < frames.size() ? frames.get(nextIndex + 1).pre() : p2;
+    Vec3 p0 = neighboringValue(previousIndex - 1, p1, true, loop);
+    Vec3 p3 = neighboringValue(nextIndex + 1, p2, false, loop);
 
     return new Vec3(
         catmullRom(p0.x(), p1.x(), p2.x(), p3.x(), amount),
         catmullRom(p0.y(), p1.y(), p2.y(), p3.y(), amount),
         catmullRom(p0.z(), p1.z(), p2.z(), p3.z(), amount));
+  }
+
+  private Vec3 neighboringValue(int index, Vec3 fallbackValue, boolean before, boolean loop) {
+    if (index >= 0 && index < frames.size()) {
+      return before ? frames.get(index).post() : frames.get(index).pre();
+    }
+
+    if (!loop || frames.size() < 3) {
+      return fallbackValue;
+    }
+
+    int wrappedIndex = Math.floorMod(index, frames.size());
+    return before ? frames.get(wrappedIndex).post() : frames.get(wrappedIndex).pre();
   }
 
   private static double catmullRom(double p0, double p1, double p2, double p3, double amount) {
@@ -95,28 +198,36 @@ public final class Channel {
             + (-p0 + 3 * p1 - 3 * p2 + p3) * amountCubed);
   }
 
-  private static Vec3 sampleBezier(Keyframe previousFrame, Keyframe nextFrame, double time) {
+  private static Vec3 sampleBezier(
+      Keyframe previousFrame,
+      Keyframe nextFrame,
+      double time,
+      double previousTime,
+      double nextTime) {
     return new Vec3(
-        sampleBezierAxis(previousFrame, nextFrame, time, Axis.X),
-        sampleBezierAxis(previousFrame, nextFrame, time, Axis.Y),
-        sampleBezierAxis(previousFrame, nextFrame, time, Axis.Z));
+        sampleBezierAxis(previousFrame, nextFrame, time, previousTime, nextTime, Axis.X),
+        sampleBezierAxis(previousFrame, nextFrame, time, previousTime, nextTime, Axis.Y),
+        sampleBezierAxis(previousFrame, nextFrame, time, previousTime, nextTime, Axis.Z));
   }
 
   private static double sampleBezierAxis(
-      Keyframe previousFrame, Keyframe nextFrame, double time, Axis axis) {
-    double startTime = previousFrame.time();
-    double endTime = nextFrame.time();
-    double timeGap = Math.max(endTime - startTime, MIN_SEGMENT_DURATION);
+      Keyframe previousFrame,
+      Keyframe nextFrame,
+      double time,
+      double previousTime,
+      double nextTime,
+      Axis axis) {
+    double timeGap = Math.max(nextTime - previousTime, MIN_SEGMENT_DURATION);
 
     double startValue = axis.value(previousFrame.post());
     double endValue = axis.value(nextFrame.pre());
     double outgoingTime = Math.clamp(axis.value(previousFrame.bezierRightTime()), 0.0, timeGap);
     double incomingTime = Math.clamp(axis.value(nextFrame.bezierLeftTime()), -timeGap, 0.0);
 
-    double p0x = startTime;
-    double p1x = startTime + outgoingTime;
-    double p2x = endTime + incomingTime;
-    double p3x = endTime;
+    double p0x = previousTime;
+    double p1x = previousTime + outgoingTime;
+    double p2x = nextTime + incomingTime;
+    double p3x = nextTime;
 
     double p0y = startValue;
     double p1y = startValue + axis.value(previousFrame.bezierRightValue());
@@ -146,10 +257,8 @@ public final class Channel {
         + amount * amount * amount * p3;
   }
 
-  private static double normalizedAmount(Keyframe previousFrame, Keyframe nextFrame, double time) {
-    return clamp01(
-        (time - previousFrame.time())
-            / Math.max(nextFrame.time() - previousFrame.time(), MIN_SEGMENT_DURATION));
+  private static double normalizedAmount(double previousTime, double nextTime, double time) {
+    return clamp01((time - previousTime) / Math.max(nextTime - previousTime, MIN_SEGMENT_DURATION));
   }
 
   private static double smoothstep(double amount) {
