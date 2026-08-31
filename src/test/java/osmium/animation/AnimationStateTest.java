@@ -4,20 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import osmium.math.Vec3;
+import osmium.model.Bone;
 
 final class AnimationStateTest {
   @Test
   void playbackHonorsCompiledFrameDurations() {
-    CompiledAnimation animation =
-        new CompiledAnimation(
-            "once",
-            0.15,
-            AnimationLoopMode.ONCE,
-            List.of(frame(0.0, 0), frame(0.10, 2), frame(0.15, 1)));
-    AnimationState state = new AnimationState();
+    Animation animation = new Animation("once", 0.15, AnimationLoopMode.ONCE, Map.of());
+    AnimationState state = configuredState(2);
     state.play(animation);
 
     assertEquals(0.0, state.frame().time());
@@ -31,11 +27,13 @@ final class AnimationStateTest {
 
     state.advance();
     assertEquals(0.10, state.frame().time());
+    assertEquals(2, state.interpolationDurationTicks());
     assertTrue(state.dirty());
 
     state.markRendered();
     state.advance();
     assertEquals(0.15, state.frame().time());
+    assertEquals(1, state.interpolationDurationTicks());
     assertFalse(state.complete());
 
     state.markRendered();
@@ -46,13 +44,8 @@ final class AnimationStateTest {
 
   @Test
   void loopingPlaybackUsesTerminalLengthFrameOnlyAsSeamMarker() {
-    CompiledAnimation animation =
-        new CompiledAnimation(
-            "loop",
-            0.10,
-            AnimationLoopMode.LOOP,
-            List.of(frame(0.0, 0), frame(0.05, 1), frame(0.10, 1)));
-    AnimationState state = new AnimationState();
+    Animation animation = new Animation("loop", 0.10, AnimationLoopMode.LOOP, Map.of());
+    AnimationState state = configuredState(1);
     state.play(animation);
 
     state.markRendered();
@@ -62,10 +55,14 @@ final class AnimationStateTest {
     state.markRendered();
     state.advance();
     assertEquals(0.0, state.frame().time());
+    assertEquals(1, state.interpolationDurationTicks());
     assertFalse(state.complete());
   }
 
-  private static CompiledAnimation.Frame frame(double time, int durationTicks) {
-    return new CompiledAnimation.Frame(time, durationTicks, false, Map.of());
+  private static AnimationState configuredState(int interpolationTicks) {
+    Bone root = new Bone("root", "root", "root", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
+    AnimationState state = new AnimationState();
+    state.configure(root, interpolationTicks);
+    return state;
   }
 }
