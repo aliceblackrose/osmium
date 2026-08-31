@@ -8,9 +8,9 @@ import java.util.Map;
 /**
  * Runtime-ready animation produced from authored Blockbench curves.
  *
- * <p>The runtime never searches keyframes or evaluates splines. Every bone is sampled onto one shared
- * frame timeline during compilation, matching the precomputed-frame architecture used by modern
- * display-entity model engines.
+ * <p>The runtime never searches keyframes or evaluates splines. Every bone is sampled onto one
+ * shared frame timeline during compilation, matching the precomputed-frame architecture used by
+ * modern display-entity model engines.
  */
 public record CompiledAnimation(
     String name, double length, AnimationLoopMode loopMode, List<Frame> frames) {
