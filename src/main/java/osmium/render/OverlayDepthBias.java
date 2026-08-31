@@ -29,13 +29,16 @@ final class OverlayDepthBias {
 
       Vec3 size = overlay.signedSize();
       if (Math.abs(size.x()) <= FLAT_AXIS_EPSILON) {
-        closest = closest(closest, surfaceCandidate(blueprint, parent, overlay.center().x(), Axis.X));
+        closest =
+            closest(closest, surfaceCandidate(blueprint, parent, overlay.center().x(), Axis.X));
       }
       if (Math.abs(size.y()) <= FLAT_AXIS_EPSILON) {
-        closest = closest(closest, surfaceCandidate(blueprint, parent, overlay.center().y(), Axis.Y));
+        closest =
+            closest(closest, surfaceCandidate(blueprint, parent, overlay.center().y(), Axis.Y));
       }
       if (Math.abs(size.z()) <= FLAT_AXIS_EPSILON) {
-        closest = closest(closest, surfaceCandidate(blueprint, parent, overlay.center().z(), Axis.Z));
+        closest =
+            closest(closest, surfaceCandidate(blueprint, parent, overlay.center().z(), Axis.Z));
       }
     }
 
