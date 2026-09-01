@@ -61,7 +61,8 @@ public final class NmsAnimationPacketTransport {
     return new Batch();
   }
 
-  public record ViewerSnapshot(Set<UUID> playerIds, List<ServerGamePacketListenerImpl> connections) {
+  public record ViewerSnapshot(
+      Set<UUID> playerIds, List<ServerGamePacketListenerImpl> connections) {
     public static final ViewerSnapshot EMPTY = new ViewerSnapshot(Set.of(), List.of());
 
     public ViewerSnapshot {
@@ -236,7 +237,8 @@ public final class NmsAnimationPacketTransport {
         field.setAccessible(true);
         return (EntityDataAccessor<?>) field.get(null);
       } catch (ReflectiveOperationException exception) {
-        throw new IllegalStateException("Unable to resolve display entity-data accessor", exception);
+        throw new IllegalStateException(
+            "Unable to resolve display entity-data accessor", exception);
       }
     }
 
