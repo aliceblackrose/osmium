@@ -25,7 +25,7 @@ final class AnimationCompilerTest {
         new Animation("step", 0.5, AnimationLoopMode.ONCE, Map.of(root.name(), timeline));
     CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 5);
 
-    CompiledAnimation.Frame hold = frameAt(compiled, 0.45);
+    CompiledAnimation.Frame hold = frameAt(compiled, 0.475);
     CompiledAnimation.Frame target = frameAt(compiled, 0.50);
 
     assertEquals(0.0, hold.pose(root.name()).position().x(), EPSILON);
@@ -35,7 +35,7 @@ final class AnimationCompilerTest {
   }
 
   @Test
-  void hierarchicalLargeRotationUsesEveryAvailableServerFrame() {
+  void hierarchicalLargeRotationUsesEveryAvailablePacketFrame() {
     Bone root = bone("root", Vec3.ZERO);
     Bone parent = bone("parent", Vec3.ZERO);
     Bone child = bone("child", Vec3.ZERO);
@@ -54,11 +54,12 @@ final class AnimationCompilerTest {
     CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 0);
     List<Double> times = compiled.frames().stream().map(CompiledAnimation.Frame::time).toList();
 
-    assertEquals(List.of(0.0, 0.05, 0.10, 0.15, 0.20), times);
+    assertEquals(
+        List.of(0.0, 0.025, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20), times);
   }
 
   @Test
-  void authoredTimesAreQuantizedToMinecraftTransportCadence() {
+  void authoredTimesAreQuantizedToPacketTransportCadence() {
     Bone root = bone("root", Vec3.ZERO);
     BoneTimeline timeline = new BoneTimeline();
     timeline.position().add(new Keyframe(0.041667, new Vec3(1, 0, 0), Interpolation.LINEAR));
@@ -70,7 +71,16 @@ final class AnimationCompilerTest {
     List<Double> times = compiled.frames().stream().map(CompiledAnimation.Frame::time).toList();
 
     assertTrue(times.contains(0.05));
-    assertTrue(times.contains(0.10));
+    assertTrue(times.contains(0.075));
+  }
+
+  @Test
+  void clientInterpolationDurationRoundsPacketStepsUpToMinecraftTicks() {
+    assertEquals(0, AnimationCompiler.clientInterpolationTicks(0));
+    assertEquals(1, AnimationCompiler.clientInterpolationTicks(1));
+    assertEquals(1, AnimationCompiler.clientInterpolationTicks(2));
+    assertEquals(2, AnimationCompiler.clientInterpolationTicks(3));
+    assertEquals(2, AnimationCompiler.clientInterpolationTicks(4));
   }
 
   @Test
