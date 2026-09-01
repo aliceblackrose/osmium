@@ -128,8 +128,12 @@ public final class AnimationState {
         && nextIndex == lastIndex
         && Math.abs(frames.get(lastIndex).time() - compiledAnimation.length())
             <= FRAME_TIME_EPSILON) {
+      CompiledAnimation.Frame seamFrame = frames.get(lastIndex);
       interpolationDurationTicks =
-          AnimationCompiler.clientInterpolationTicks(frames.get(lastIndex).durationSteps());
+          seamFrame.skipInterpolation()
+              ? 0
+              : Math.max(
+                  1, AnimationCompiler.clientInterpolationTicks(seamFrame.durationSteps()));
       frameIndex = 0;
     } else {
       interpolationDurationTicks =

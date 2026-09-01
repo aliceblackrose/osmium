@@ -67,6 +67,33 @@ final class AnimationStateTest {
     assertFalse(state.complete());
   }
 
+  @Test
+  void loopingTwentyFiveMillisecondSeamKeepsOneTickBlend() {
+    Bone root = new Bone("root", "root", "root", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
+    BoneTimeline timeline = new BoneTimeline();
+    timeline.position().add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));
+    timeline.position().add(new Keyframe(0.05, new Vec3(1, 0, 0), Interpolation.LINEAR));
+
+    Animation animation =
+        new Animation("short_seam", 0.075, AnimationLoopMode.LOOP, Map.of(root.name(), timeline));
+    AnimationState state = new AnimationState();
+    state.configure(root, 0);
+    state.play(animation);
+
+    state.markRendered();
+    state.advance();
+    assertEquals(0.0, state.frame().time());
+    state.advance();
+    assertEquals(0.05, state.frame().time());
+
+    state.markRendered();
+    state.advance();
+    assertEquals(0.0, state.frame().time());
+    assertEquals(1, state.interpolationDurationTicks());
+    assertTrue(state.dirty());
+    assertFalse(state.complete());
+  }
+
   private static AnimationState configuredState(int interpolationTicks) {
     Bone root = new Bone("root", "root", "root", Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, true);
     AnimationState state = new AnimationState();
