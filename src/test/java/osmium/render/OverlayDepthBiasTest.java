@@ -58,6 +58,27 @@ final class OverlayDepthBiasTest {
   }
 
   @Test
+  void embeddedPupilIgnoresSharedEyeEdgesAndBiasesOnlyOutward() {
+    Bone root = bone("root", Vec3.ZERO, Vec3.ZERO);
+    Bone eye = bone("eye", new Vec3(-26, 27.5, -4.025), Vec3.ZERO);
+    Bone pupil = bone("pupil", new Vec3(-25.5, 27.5, -3.55), eye.origin());
+    root.addChild(eye);
+    eye.addChild(pupil);
+
+    Cube eyePlane = cube("eye-plane", new Vec3(-27, 27, -4.025), new Vec3(-25, 28, -4.025));
+    Cube pupilCube = cube("pupil-cube", new Vec3(-26, 27, -4.05), new Vec3(-25, 28, -3.05));
+    eye.addCube(eyePlane.uuid());
+    pupil.addCube(pupilCube.uuid());
+
+    ModelBlueprint blueprint = blueprint(root, eye, pupil, eyePlane, pupilCube);
+    Vec3 offset = OverlayDepthBias.minecraftOffset(blueprint, pupil);
+
+    assertEquals(0.0, offset.x(), EPSILON);
+    assertEquals(0.0, offset.y(), EPSILON);
+    assertEquals(1.0 / 512.0, offset.z(), EPSILON);
+  }
+
+  @Test
   void attachedNoseIsNotMistakenForEmbeddedOverlay() {
     Bone root = bone("root", Vec3.ZERO, Vec3.ZERO);
     Bone head = bone("head", new Vec3(-24, 24, 0), Vec3.ZERO);
