@@ -1,7 +1,7 @@
 name: Osmium
 version: ${version}
 main: osmium.OsmiumPlugin
-api-version: '1.21'
+api-version: '26.1'
 authors: [AliceBlackrose, Auuki]
 load: POSTWORLD
 description: Clean-room ModelEngine-style Blockbench renderer (Osmium).
