@@ -16,7 +16,7 @@ public final class AnimationState {
   private Animation animation;
   private CompiledAnimation compiledAnimation;
   private int frameIndex;
-  private int ticksUntilNext;
+  private int stepsUntilNext;
   private int interpolationDurationTicks;
   private boolean complete;
   private boolean dirty;
@@ -43,14 +43,14 @@ public final class AnimationState {
     interpolationDurationTicks = 0;
     complete = compiledAnimation.frames().isEmpty();
     dirty = !complete;
-    ticksUntilNext = complete ? 0 : durationToNextFrame();
+    stepsUntilNext = complete ? 0 : durationToNextFrame();
   }
 
   public void stop() {
     animation = null;
     compiledAnimation = null;
     frameIndex = 0;
-    ticksUntilNext = 0;
+    stepsUntilNext = 0;
     interpolationDurationTicks = 0;
     complete = false;
     dirty = false;
@@ -98,7 +98,7 @@ public final class AnimationState {
     dirty = false;
   }
 
-  /** Advances one Minecraft server tick through the compiled frame stream. */
+  /** Advances one 25 ms packet-renderer step through the compiled frame stream. */
   public void advance() {
     if (compiledAnimation == null || complete || compiledAnimation.frames().isEmpty()) {
       return;
@@ -111,15 +111,15 @@ public final class AnimationState {
         interpolationDurationTicks = 1;
         frameIndex = 0;
         dirty = true;
-        ticksUntilNext = durationToNextFrame();
+        stepsUntilNext = durationToNextFrame();
       } else {
         complete = true;
       }
       return;
     }
 
-    if (ticksUntilNext > 1) {
-      ticksUntilNext--;
+    if (stepsUntilNext > 1) {
+      stepsUntilNext--;
       return;
     }
 
@@ -128,17 +128,17 @@ public final class AnimationState {
         && nextIndex == lastIndex
         && Math.abs(frames.get(lastIndex).time() - compiledAnimation.length())
             <= FRAME_TIME_EPSILON) {
-      // The terminal length frame is a compile-time seam marker. Its duration is the transition
-      // duration from the last visible frame back to frame zero.
-      interpolationDurationTicks = Math.max(1, frames.get(lastIndex).durationTicks());
+      interpolationDurationTicks =
+          AnimationCompiler.clientInterpolationTicks(frames.get(lastIndex).durationSteps());
       frameIndex = 0;
     } else {
-      interpolationDurationTicks = Math.max(0, frames.get(nextIndex).durationTicks());
+      interpolationDurationTicks =
+          AnimationCompiler.clientInterpolationTicks(frames.get(nextIndex).durationSteps());
       frameIndex = nextIndex;
     }
 
     dirty = true;
-    ticksUntilNext = durationToNextFrame();
+    stepsUntilNext = durationToNextFrame();
   }
 
   private int durationToNextFrame() {
@@ -149,7 +149,7 @@ public final class AnimationState {
     List<CompiledAnimation.Frame> frames = compiledAnimation.frames();
     int nextIndex = frameIndex + 1;
     if (nextIndex < frames.size()) {
-      return Math.max(1, frames.get(nextIndex).durationTicks());
+      return Math.max(1, frames.get(nextIndex).durationSteps());
     }
 
     return compiledAnimation.loop() ? 1 : 0;
