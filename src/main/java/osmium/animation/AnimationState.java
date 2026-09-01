@@ -1,24 +1,67 @@
 package osmium.animation;
 
-/** Playback state advanced at the same 20 TPS cadence used to transmit display poses. */
-public final class AnimationState {
-  private static final double TICKS_PER_SECOND = 20.0;
+import java.util.IdentityHashMap;
+import java.util.List;
+import osmium.model.Bone;
 
+/** Playback state backed by cached, precompiled animation frame streams. */
+public final class AnimationState {
+  private static final double FRAME_TIME_EPSILON = 1.0E-6D;
+
+  private final IdentityHashMap<Animation, CompiledAnimation> compiledAnimations =
+      new IdentityHashMap<>();
+
+  private Bone rootBone;
+  private int compileInterpolationTicks = 1;
   private Animation animation;
-  private long elapsedTicks;
+  private CompiledAnimation compiledAnimation;
+  private int frameIndex;
+  private int stepsUntilNext;
+  private int interpolationDurationTicks;
+  private boolean complete;
+  private boolean dirty;
+
+  /** Configures the skeleton and maximum client interpolation interval used during compilation. */
+  public void configure(Bone rootBone, int interpolationDurationTicks) {
+    this.rootBone = rootBone;
+    compileInterpolationTicks = Math.max(0, interpolationDurationTicks);
+    compiledAnimations.clear();
+    stop();
+  }
 
   public void play(Animation animation) {
+    if (rootBone == null) {
+      throw new IllegalStateException("AnimationState must be configured before playback.");
+    }
+
     this.animation = animation;
-    elapsedTicks = 0;
+    compiledAnimation =
+        compiledAnimations.computeIfAbsent(
+            animation,
+            value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
+    frameIndex = 0;
+    interpolationDurationTicks = 0;
+    complete = compiledAnimation.frames().isEmpty();
+    dirty = !complete;
+    stepsUntilNext = complete ? 0 : durationToNextFrame();
   }
 
   public void stop() {
     animation = null;
-    elapsedTicks = 0;
+    compiledAnimation = null;
+    frameIndex = 0;
+    stepsUntilNext = 0;
+    interpolationDurationTicks = 0;
+    complete = false;
+    dirty = false;
   }
 
   public Animation animation() {
     return animation;
+  }
+
+  public CompiledAnimation compiledAnimation() {
+    return compiledAnimation;
   }
 
   public boolean playing(String name) {
@@ -26,29 +69,89 @@ public final class AnimationState {
   }
 
   public boolean complete() {
-    Animation currentAnimation = animation;
-    return currentAnimation != null
-        && !currentAnimation.loop()
-        && elapsedSeconds() >= currentAnimation.length();
+    return animation != null && complete;
+  }
+
+  public CompiledAnimation.Frame frame() {
+    if (compiledAnimation == null || compiledAnimation.frames().isEmpty()) {
+      return null;
+    }
+    return compiledAnimation.frames().get(frameIndex);
   }
 
   public double time() {
-    Animation currentAnimation = animation;
-    if (currentAnimation == null) {
+    CompiledAnimation.Frame currentFrame = frame();
+    return currentFrame == null ? 0.0D : currentFrame.time();
+  }
+
+  /** Duration Minecraft should use when interpolating from the previous pose to this frame. */
+  public int interpolationDurationTicks() {
+    return interpolationDurationTicks;
+  }
+
+  /** True when a new local pose needs to be transmitted to display entities. */
+  public boolean dirty() {
+    return dirty;
+  }
+
+  public void markRendered() {
+    dirty = false;
+  }
+
+  /** Advances one 25 ms packet-renderer step through the compiled frame stream. */
+  public void advance() {
+    if (compiledAnimation == null || complete || compiledAnimation.frames().isEmpty()) {
+      return;
+    }
+
+    List<CompiledAnimation.Frame> frames = compiledAnimation.frames();
+    int lastIndex = frames.size() - 1;
+    if (frameIndex >= lastIndex) {
+      if (compiledAnimation.loop()) {
+        interpolationDurationTicks = 1;
+        frameIndex = 0;
+        dirty = true;
+        stepsUntilNext = durationToNextFrame();
+      } else {
+        complete = true;
+      }
+      return;
+    }
+
+    if (stepsUntilNext > 1) {
+      stepsUntilNext--;
+      return;
+    }
+
+    int nextIndex = frameIndex + 1;
+    if (compiledAnimation.loop()
+        && nextIndex == lastIndex
+        && Math.abs(frames.get(lastIndex).time() - compiledAnimation.length())
+            <= FRAME_TIME_EPSILON) {
+      interpolationDurationTicks =
+          AnimationCompiler.clientInterpolationTicks(frames.get(lastIndex).durationSteps());
+      frameIndex = 0;
+    } else {
+      interpolationDurationTicks =
+          AnimationCompiler.clientInterpolationTicks(frames.get(nextIndex).durationSteps());
+      frameIndex = nextIndex;
+    }
+
+    dirty = true;
+    stepsUntilNext = durationToNextFrame();
+  }
+
+  private int durationToNextFrame() {
+    if (compiledAnimation == null || compiledAnimation.frames().isEmpty()) {
       return 0;
     }
 
-    return currentAnimation.normalize(elapsedSeconds());
-  }
-
-  public double elapsedSeconds() {
-    return animation == null ? 0 : elapsedTicks / TICKS_PER_SECOND;
-  }
-
-  /** Advances exactly one server animation frame (1/20 second). */
-  public void advance() {
-    if (animation != null) {
-      elapsedTicks++;
+    List<CompiledAnimation.Frame> frames = compiledAnimation.frames();
+    int nextIndex = frameIndex + 1;
+    if (nextIndex < frames.size()) {
+      return Math.max(1, frames.get(nextIndex).durationSteps());
     }
+
+    return compiledAnimation.loop() ? 1 : 0;
   }
 }
