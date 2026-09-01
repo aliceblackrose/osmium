@@ -54,8 +54,7 @@ final class AnimationCompilerTest {
     CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 0);
     List<Double> times = compiled.frames().stream().map(CompiledAnimation.Frame::time).toList();
 
-    assertEquals(
-        List.of(0.0, 0.025, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20), times);
+    assertEquals(List.of(0.0, 0.025, 0.05, 0.075, 0.10, 0.125, 0.15, 0.175, 0.20), times);
   }
 
   @Test
