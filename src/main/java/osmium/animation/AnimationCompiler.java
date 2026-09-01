@@ -22,7 +22,8 @@ import osmium.model.Bone;
 public final class AnimationCompiler {
   public static final long TRANSPORT_STEP_MILLIS = 25L;
   public static final double TRANSPORT_STEP_SECONDS = TRANSPORT_STEP_MILLIS / 1000.0D;
-  public static final double MINECRAFT_TICK_SECONDS = 0.05D;
+  public static final long MINECRAFT_TICK_MILLIS = 50L;
+  public static final double MINECRAFT_TICK_SECONDS = MINECRAFT_TICK_MILLIS / 1000.0D;
 
   private static final double MAX_ROTATION_STEP_DEGREES = 90.0D;
   private static final double TIME_SCALE = 1_000_000.0D;
@@ -77,8 +78,9 @@ public final class AnimationCompiler {
       return 0;
     }
 
-    double seconds = transportSteps * TRANSPORT_STEP_SECONDS;
-    return Math.max(1, (int) Math.ceil(seconds / MINECRAFT_TICK_SECONDS));
+    long durationMillis = (long) transportSteps * TRANSPORT_STEP_MILLIS;
+    return (int)
+        ((durationMillis + MINECRAFT_TICK_MILLIS - 1L) / MINECRAFT_TICK_MILLIS);
   }
 
   private static void collectAuthoredTimes(
