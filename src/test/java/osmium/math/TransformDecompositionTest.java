@@ -32,9 +32,7 @@ final class TransformDecompositionTest {
     Matrix4f reconstructed =
         new Matrix4f()
             .translate(
-                components.translation().x,
-                components.translation().y,
-                components.translation().z)
+                components.translation().x, components.translation().y, components.translation().z)
             .rotate(components.leftRotation())
             .scale(components.scale().x, components.scale().y, components.scale().z);
 
