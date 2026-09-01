@@ -56,8 +56,7 @@ final class ResourcePackGeneratorTest {
     assertArrayEquals(firstPackBytes, secondPackBytes);
 
     try (Stream<Path> paths = Files.list(tempDirectory)) {
-      long zipCount =
-          paths.filter(path -> path.getFileName().toString().endsWith(".zip")).count();
+      long zipCount = paths.filter(path -> path.getFileName().toString().endsWith(".zip")).count();
       assertEquals(1L, zipCount);
     }
   }
