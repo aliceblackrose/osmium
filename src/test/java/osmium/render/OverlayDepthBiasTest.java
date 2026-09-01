@@ -36,6 +36,46 @@ final class OverlayDepthBiasTest {
   }
 
   @Test
+  void embeddedEyebrowNearParentSurfaceGetsOutwardBias() {
+    Bone root = bone("root", Vec3.ZERO, Vec3.ZERO);
+    Bone head = bone("head", new Vec3(-24, 24, 0), Vec3.ZERO);
+    Bone eyebrow = bone("eyebrow", new Vec3(-24, 28.5, -3.025), head.origin());
+    root.addChild(head);
+    head.addChild(eyebrow);
+
+    Cube headCube = cube("head-cube", new Vec3(-28, 24, -4), new Vec3(-20, 34, 4));
+    Cube eyebrowCube =
+        cube("eyebrow-cube", new Vec3(-27, 28, -4.025), new Vec3(-21, 29, -2.025));
+    head.addCube(headCube.uuid());
+    eyebrow.addCube(eyebrowCube.uuid());
+
+    ModelBlueprint blueprint = blueprint(root, head, eyebrow, headCube, eyebrowCube);
+    Vec3 offset = OverlayDepthBias.minecraftOffset(blueprint, eyebrow);
+
+    assertEquals(0.0, offset.x(), EPSILON);
+    assertEquals(0.0, offset.y(), EPSILON);
+    assertEquals(1.0 / 512.0, offset.z(), EPSILON);
+  }
+
+  @Test
+  void attachedNoseIsNotMistakenForEmbeddedOverlay() {
+    Bone root = bone("root", Vec3.ZERO, Vec3.ZERO);
+    Bone head = bone("head", new Vec3(-24, 24, 0), Vec3.ZERO);
+    Bone nose = bone("nose", new Vec3(-24, 26.25, -4), head.origin());
+    root.addChild(head);
+    head.addChild(nose);
+
+    Cube headCube = cube("head-cube", new Vec3(-28, 24, -4), new Vec3(-20, 34, 4));
+    Cube noseCube = cube("nose-cube", new Vec3(-25, 23, -6), new Vec3(-23, 27, -4));
+    head.addCube(headCube.uuid());
+    nose.addCube(noseCube.uuid());
+
+    ModelBlueprint blueprint = blueprint(root, head, nose, headCube, noseCube);
+
+    assertEquals(Vec3.ZERO, OverlayDepthBias.minecraftOffset(blueprint, nose));
+  }
+
+  @Test
   void internalFlatPlaneIsNotMistakenForSurfaceOverlay() {
     Bone root = bone("root", Vec3.ZERO, Vec3.ZERO);
     Bone head = bone("head", new Vec3(24, 24, 0), Vec3.ZERO);
