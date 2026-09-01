@@ -33,6 +33,7 @@ import org.joml.Vector3f;
  */
 public final class NmsAnimationPacketTransport {
   private static final float COMPONENT_EPSILON = 1.0E-6F;
+  private static final int IMMEDIATE_INTERPOLATION_START_DELTA_TICKS = -1;
   private static final Accessors ACCESSORS = Accessors.discover();
 
   private NmsAnimationPacketTransport() {}
@@ -143,7 +144,9 @@ public final class NmsAnimationPacketTransport {
       }
 
       List<SynchedEntityData.DataValue<?>> values = new ArrayList<>(6);
-      values.add(SynchedEntityData.DataValue.create(ACCESSORS.interpolationDelay(), 0));
+      values.add(
+          SynchedEntityData.DataValue.create(
+              ACCESSORS.interpolationDelay(), interpolationStartDeltaTicks(interpolationDurationTicks)));
       values.add(
           SynchedEntityData.DataValue.create(
               ACCESSORS.interpolationDuration(), Math.max(0, interpolationDurationTicks)));
@@ -169,6 +172,10 @@ public final class NmsAnimationPacketTransport {
 
       return new ClientboundSetEntityDataPacket(entityId, values);
     }
+  }
+
+  static int interpolationStartDeltaTicks(int interpolationDurationTicks) {
+    return interpolationDurationTicks > 0 ? IMMEDIATE_INTERPOLATION_START_DELTA_TICKS : 0;
   }
 
   static void keepSameHemisphere(Quaternionf quaternion, Quaternionf previous) {
