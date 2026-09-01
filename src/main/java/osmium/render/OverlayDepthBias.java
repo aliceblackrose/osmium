@@ -6,10 +6,11 @@ import osmium.model.Bone;
 import osmium.model.Cube;
 import osmium.model.ModelBlueprint;
 
-/** Finds a tiny outward offset for authored flat overlays that sit on a parent bone surface. */
+/** Finds a tiny outward offset for authored overlays that sit on a parent bone surface. */
 final class OverlayDepthBias {
   private static final double FLAT_AXIS_EPSILON = 1.0E-6;
   private static final double MAX_SURFACE_DISTANCE = 0.25;
+  private static final double MAX_EMBEDDED_DEPTH = 2.0;
   private static final double DEPTH_BIAS = 1.0 / 32.0;
 
   private OverlayDepthBias() {}
@@ -31,14 +32,20 @@ final class OverlayDepthBias {
       if (Math.abs(size.x()) <= FLAT_AXIS_EPSILON) {
         closest =
             closest(closest, surfaceCandidate(blueprint, parent, overlay.center().x(), Axis.X));
+      } else {
+        closest = closest(closest, embeddedSurfaceCandidate(blueprint, parent, overlay, Axis.X));
       }
       if (Math.abs(size.y()) <= FLAT_AXIS_EPSILON) {
         closest =
             closest(closest, surfaceCandidate(blueprint, parent, overlay.center().y(), Axis.Y));
+      } else {
+        closest = closest(closest, embeddedSurfaceCandidate(blueprint, parent, overlay, Axis.Y));
       }
       if (Math.abs(size.z()) <= FLAT_AXIS_EPSILON) {
         closest =
             closest(closest, surfaceCandidate(blueprint, parent, overlay.center().z(), Axis.Z));
+      } else {
+        closest = closest(closest, embeddedSurfaceCandidate(blueprint, parent, overlay, Axis.Z));
       }
     }
 
@@ -63,6 +70,49 @@ final class OverlayDepthBias {
 
       closest = closest(closest, candidate(planeCoordinate, minimum, axis, -1));
       closest = closest(closest, candidate(planeCoordinate, maximum, axis, 1));
+    }
+
+    return closest;
+  }
+
+  private static Candidate embeddedSurfaceCandidate(
+      ModelBlueprint blueprint, Bone parent, Cube overlay, Axis axis) {
+    double overlayFrom = axis.value(overlay.from());
+    double overlayTo = axis.value(overlay.to());
+    double overlayInflation = Math.max(0, overlay.inflate());
+    double overlayMinimum = Math.min(overlayFrom, overlayTo) - overlayInflation;
+    double overlayMaximum = Math.max(overlayFrom, overlayTo) + overlayInflation;
+
+    Candidate closest = null;
+    for (String cubeId : parent.cubeIds()) {
+      Cube support = blueprint.cube(cubeId).orElse(null);
+      if (support == null || !support.renderable()) {
+        continue;
+      }
+
+      double supportFrom = axis.value(support.from());
+      double supportTo = axis.value(support.to());
+      double supportInflation = Math.max(0, support.inflate());
+      double supportMinimum = Math.min(supportFrom, supportTo) - supportInflation;
+      double supportMaximum = Math.max(supportFrom, supportTo) + supportInflation;
+
+      double minimumGap = supportMinimum - overlayMinimum;
+      double minimumPenetration = overlayMaximum - supportMinimum;
+      if (minimumGap >= 0
+          && minimumGap <= MAX_SURFACE_DISTANCE
+          && minimumPenetration > FLAT_AXIS_EPSILON
+          && minimumPenetration <= MAX_EMBEDDED_DEPTH) {
+        closest = closest(closest, new Candidate(minimumGap, axis.offset(-DEPTH_BIAS)));
+      }
+
+      double maximumGap = overlayMaximum - supportMaximum;
+      double maximumPenetration = supportMaximum - overlayMinimum;
+      if (maximumGap >= 0
+          && maximumGap <= MAX_SURFACE_DISTANCE
+          && maximumPenetration > FLAT_AXIS_EPSILON
+          && maximumPenetration <= MAX_EMBEDDED_DEPTH) {
+        closest = closest(closest, new Candidate(maximumGap, axis.offset(DEPTH_BIAS)));
+      }
     }
 
     return closest;
