@@ -181,10 +181,10 @@ public final class NmsAnimationPacketTransport {
 
     Transformation transformation = new Transformation(new Matrix4f(matrix));
     return new Components(
-        transformation.translation(),
-        transformation.scale(),
-        transformation.leftRotation(),
-        transformation.rightRotation());
+        new Vector3f(transformation.translation()),
+        new Vector3f(transformation.scale()),
+        new Quaternionf(transformation.leftRotation()),
+        new Quaternionf(transformation.rightRotation()));
   }
 
   static void keepSameHemisphere(Quaternionf quaternion, Quaternionf previous) {
