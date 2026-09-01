@@ -34,16 +34,23 @@ public final class AnimationState {
       throw new IllegalStateException("AnimationState must be configured before playback.");
     }
 
+    boolean blendFromPreviousPose =
+        this.animation != null
+            && compiledAnimation != null
+            && !compiledAnimation.frames().isEmpty()
+            && compileInterpolationTicks > 0;
+
     this.animation = animation;
     compiledAnimation =
         compiledAnimations.computeIfAbsent(
             animation,
             value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
     frameIndex = 0;
-    interpolationDurationTicks = 0;
+    interpolationDurationTicks = blendFromPreviousPose ? 1 : 0;
     complete = compiledAnimation.frames().isEmpty();
     dirty = !complete;
     stepsUntilNext = complete ? 0 : durationToNextFrame();
+    holdUntilInterpolationFinishes();
   }
 
   public void stop() {
@@ -112,6 +119,7 @@ public final class AnimationState {
         frameIndex = 0;
         dirty = true;
         stepsUntilNext = durationToNextFrame();
+        holdUntilInterpolationFinishes();
       } else {
         complete = true;
       }
@@ -143,6 +151,21 @@ public final class AnimationState {
 
     dirty = true;
     stepsUntilNext = durationToNextFrame();
+    holdUntilInterpolationFinishes();
+  }
+
+  private void holdUntilInterpolationFinishes() {
+    if (interpolationDurationTicks <= 0) {
+      return;
+    }
+
+    int interpolationTransportSteps =
+        interpolationDurationTicks
+            * (int)
+                Math.round(
+                    AnimationCompiler.MINECRAFT_TICK_SECONDS
+                        / AnimationCompiler.TRANSPORT_STEP_SECONDS);
+    stepsUntilNext = Math.max(stepsUntilNext, interpolationTransportSteps);
   }
 
   private int durationToNextFrame() {
