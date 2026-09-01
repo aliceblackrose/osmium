@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.bukkit.NamespacedKey;
@@ -25,6 +26,7 @@ public final class OsmiumPlugin extends JavaPlugin {
   private NamespacedKey runtimeModelKey;
   private BukkitTask tickTask;
   private ScheduledExecutorService animationExecutor;
+  private ScheduledFuture<?> animationTask;
 
   @Override
   public void onEnable() {
@@ -138,11 +140,12 @@ public final class OsmiumPlugin extends JavaPlugin {
               return thread;
             });
 
-    animationExecutor.scheduleAtFixedRate(
-        this::runAnimationTick,
-        AnimationCompiler.TRANSPORT_STEP_MILLIS,
-        AnimationCompiler.TRANSPORT_STEP_MILLIS,
-        TimeUnit.MILLISECONDS);
+    animationTask =
+        animationExecutor.scheduleAtFixedRate(
+            this::runAnimationTick,
+            AnimationCompiler.TRANSPORT_STEP_MILLIS,
+            AnimationCompiler.TRANSPORT_STEP_MILLIS,
+            TimeUnit.MILLISECONDS);
   }
 
   private void runAnimationTick() {
@@ -154,6 +157,11 @@ public final class OsmiumPlugin extends JavaPlugin {
   }
 
   private void stopAnimationRenderer() {
+    if (animationTask != null) {
+      animationTask.cancel(true);
+      animationTask = null;
+    }
+
     if (animationExecutor == null) {
       return;
     }
