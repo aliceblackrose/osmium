@@ -50,7 +50,9 @@ public final class AnimationState {
     complete = compiledAnimation.frames().isEmpty();
     dirty = !complete;
     stepsUntilNext = complete ? 0 : durationToNextFrame();
-    holdUntilInterpolationFinishes();
+    if (blendFromPreviousPose) {
+      holdUntilInterpolationFinishes();
+    }
   }
 
   public void stop() {
@@ -132,6 +134,7 @@ public final class AnimationState {
     }
 
     int nextIndex = frameIndex + 1;
+    boolean wrappedToStart = false;
     if (compiledAnimation.loop()
         && nextIndex == lastIndex
         && Math.abs(frames.get(lastIndex).time() - compiledAnimation.length())
@@ -143,6 +146,7 @@ public final class AnimationState {
               : Math.max(
                   1, AnimationCompiler.clientInterpolationTicks(seamFrame.durationSteps()));
       frameIndex = 0;
+      wrappedToStart = true;
     } else {
       interpolationDurationTicks =
           AnimationCompiler.clientInterpolationTicks(frames.get(nextIndex).durationSteps());
@@ -151,7 +155,9 @@ public final class AnimationState {
 
     dirty = true;
     stepsUntilNext = durationToNextFrame();
-    holdUntilInterpolationFinishes();
+    if (wrappedToStart) {
+      holdUntilInterpolationFinishes();
+    }
   }
 
   private void holdUntilInterpolationFinishes() {
