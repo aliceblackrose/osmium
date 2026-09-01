@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,19 +39,27 @@ final class ResourcePackGeneratorTest {
   }
 
   @Test
-  void identicalInputsProduceIdenticalPackBytesAndHash() throws Exception {
+  void identicalInputsProduceSingleDeterministicPack() throws Exception {
     ResourcePackGenerator generator =
         new ResourcePackGenerator(
             Logger.getAnonymousLogger(), tempDirectory, "osmium", 100_000, Material.PAPER, 84);
 
-    Path firstVersionedPack = generator.generate(List.of());
-    byte[] firstPackBytes = Files.readAllBytes(tempDirectory.resolve("pack.zip"));
+    Path firstPack = generator.generate(List.of());
+    byte[] firstPackBytes = Files.readAllBytes(firstPack);
+    Files.writeString(tempDirectory.resolve("pack-deadbeef.zip"), "stale");
 
-    Path secondVersionedPack = generator.generate(List.of());
-    byte[] secondPackBytes = Files.readAllBytes(tempDirectory.resolve("pack.zip"));
+    Path secondPack = generator.generate(List.of());
+    byte[] secondPackBytes = Files.readAllBytes(secondPack);
 
-    assertEquals(firstVersionedPack.getFileName(), secondVersionedPack.getFileName());
+    assertEquals(tempDirectory.resolve("pack.zip"), firstPack);
+    assertEquals(firstPack, secondPack);
     assertArrayEquals(firstPackBytes, secondPackBytes);
+
+    try (Stream<Path> paths = Files.list(tempDirectory)) {
+      long zipCount =
+          paths.filter(path -> path.getFileName().toString().endsWith(".zip")).count();
+      assertEquals(1L, zipCount);
+    }
   }
 
   @Test

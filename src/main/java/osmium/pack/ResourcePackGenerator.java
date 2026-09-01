@@ -12,12 +12,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -78,7 +75,6 @@ public final class ResourcePackGenerator {
   private static final double MODEL_UNITS = 16.0;
   private static final int FALLBACK_CHECKER_SIZE = 4;
   private static final int FALLBACK_TEXTURE_SIZE = 16;
-  private static final int HASH_PREFIX_LENGTH = 12;
   private static final int ROUNDING_SCALE = 1_000_000;
   private static final int RESOURCE_PACK_FORMAT_26_1 = 84;
   private static final long DETERMINISTIC_ZIP_TIMESTAMP_MILLIS = 315_532_800_000L;
@@ -115,7 +111,7 @@ public final class ResourcePackGenerator {
     this.packFormat = Math.max(1, packFormat);
   }
 
-  /** Generates the resource pack and returns the versioned zip path. */
+  /** Generates the resource pack and returns the generated zip path. */
   public Path generate(Collection<ModelBlueprint> models) throws IOException {
     Files.createDirectories(outputFolder);
     deleteGeneratedFiles();
@@ -133,9 +129,8 @@ public final class ResourcePackGenerator {
 
     Path zipPath = outputFolder.resolve(GENERATED_PACK_NAME);
     zip(zipPath);
-    Path versionedZip = copyVersionedZip(zipPath);
     writeCacheBuster();
-    return versionedZip;
+    return zipPath;
   }
 
   private static void deleteRecursively(Path path) throws IOException {
@@ -744,23 +739,5 @@ public final class ResourcePackGenerator {
 
   private String zipEntryName(Path path) {
     return outputFolder.relativize(path).toString().replace('\\', '/');
-  }
-
-  private Path copyVersionedZip(Path zipPath) throws IOException {
-    byte[] bytes = Files.readAllBytes(zipPath);
-    String hash = sha1Prefix(bytes);
-
-    Path versionedZip = outputFolder.resolve("pack-" + hash + ZIP_EXTENSION);
-    Files.copy(zipPath, versionedZip, StandardCopyOption.REPLACE_EXISTING);
-    return versionedZip;
-  }
-
-  private String sha1Prefix(byte[] bytes) throws IOException {
-    try {
-      byte[] digest = MessageDigest.getInstance("SHA-1").digest(bytes);
-      return HexFormat.of().formatHex(digest).substring(0, HASH_PREFIX_LENGTH);
-    } catch (NoSuchAlgorithmException exception) {
-      throw new IOException("SHA-1 digest algorithm is unavailable.", exception);
-    }
   }
 }
