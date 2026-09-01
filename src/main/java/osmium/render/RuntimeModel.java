@@ -1,8 +1,11 @@
 package osmium.render;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -30,6 +33,7 @@ import osmium.model.Cube;
 import osmium.model.HitboxPart;
 import osmium.model.ModelBlueprint;
 import osmium.model.RenderPart;
+import osmium.network.NmsAnimationPacketTransport;
 import osmium.util.Names;
 
 /** Runtime instance of a generated model rendered with Bukkit display entities. */
@@ -77,13 +81,21 @@ public final class RuntimeModel {
   private final Optional<Animation> hurtAnimation;
   private final Optional<Animation> deathAnimation;
   private final AnimationState animationState = new AnimationState();
+  private final Object animationLock = new Object();
+  private final Set<UUID> hiddenPlayers = new HashSet<>();
 
-  private boolean removed;
+  private volatile boolean removed;
+  private volatile boolean frozen;
+  private volatile float currentYawRadians;
+  private volatile NmsAnimationPacketTransport.ViewerSnapshot animationViewers =
+      NmsAnimationPacketTransport.ViewerSnapshot.EMPTY;
+  private volatile long viewerGeneration;
+
   private boolean manualAnimation;
   private boolean deathAnimationStarted;
-  private boolean frozen;
   private long actionEndsAtNanos;
   private float lastRenderedYawRadians = Float.NaN;
+  private long sentViewerGeneration = -1L;
 
   public RuntimeModel(
       int id,
@@ -101,6 +113,7 @@ public final class RuntimeModel {
     this.blueprint = blueprint;
     this.staticOrigin = normalizedOrigin(location);
     this.staticYawRadians = yawRadians(location);
+    this.currentYawRadians = staticYawRadians;
     this.baseEntity = baseEntity;
     this.parts = new ArrayList<>(blueprint.parts().size());
     this.hitboxes = new ArrayList<>(blueprint.hitboxes().size());
@@ -118,6 +131,7 @@ public final class RuntimeModel {
     spawnParts();
     spawnHitboxes();
     playInitialAnimation(initialAnimation);
+    initializeServerPose();
     tick();
   }
 
@@ -144,11 +158,13 @@ public final class RuntimeModel {
     }
 
     Animation requestedAnimation = animation.get();
-    manualAnimation = baseEntity == null;
-    frozen = false;
-    actionEndsAtNanos =
-        baseEntity == null ? 0 : System.nanoTime() + actionDurationNanos(requestedAnimation);
-    animationState.play(requestedAnimation);
+    synchronized (animationLock) {
+      manualAnimation = baseEntity == null;
+      frozen = false;
+      actionEndsAtNanos =
+          baseEntity == null ? 0 : System.nanoTime() + actionDurationNanos(requestedAnimation);
+      animationState.play(requestedAnimation);
+    }
     return true;
   }
 
@@ -173,6 +189,7 @@ public final class RuntimeModel {
     return played;
   }
 
+  /** Main-server-thread tick for entity lifecycle, movement, tracking, and hitboxes. */
   public void tick() {
     if (removed || (baseEntity == null && frozen)) {
       return;
@@ -185,12 +202,17 @@ public final class RuntimeModel {
         playDeath();
       }
 
-      if (deathAnimationStarted
-          && actionEndsAtNanos > 0
-          && nowNanos < actionEndsAtNanos
-          && !animationState.complete()) {
-        updateVisuals();
-        animationState.advance();
+      boolean animationStillRunning;
+      synchronized (animationLock) {
+        animationStillRunning =
+            deathAnimationStarted
+                && actionEndsAtNanos > 0
+                && nowNanos < actionEndsAtNanos
+                && !animationState.complete();
+      }
+
+      if (animationStillRunning) {
+        updateMainThreadVisuals();
         return;
       }
 
@@ -199,32 +221,76 @@ public final class RuntimeModel {
     }
 
     updateAnimationController(nowNanos);
-    updateVisuals();
+    updateMainThreadVisuals();
+  }
 
-    if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
-      frozen = true;
-    } else {
+  /**
+   * 25 ms packet-render tick. This method must not call Bukkit APIs; it only consumes main-thread
+   * snapshots, computes local matrices, and sends vanilla packets through cached player connections.
+   */
+  public void animationTick() {
+    if (removed || (baseEntity == null && frozen)) {
+      return;
+    }
+
+    synchronized (animationLock) {
+      if (removed || (baseEntity == null && frozen)) {
+        return;
+      }
+
+      float yawRadians = currentYawRadians;
+      long currentViewerGeneration = viewerGeneration;
+      boolean viewersChanged = currentViewerGeneration != sentViewerGeneration;
+      boolean yawChanged = Float.compare(yawRadians, lastRenderedYawRadians) != 0;
+      boolean transformDirty = animationState.dirty() || yawChanged;
+
+      if (transformDirty || viewersChanged) {
+        CompiledAnimation.Frame animationFrame = animationState.frame();
+        applyBoneTransform(blueprint.root(), updateRootTransform(yawRadians), animationFrame);
+
+        int interpolationDuration = animationState.interpolationDurationTicks();
+        if (animationFrame != null && animationFrame.skipInterpolation()) {
+          interpolationDuration = 0;
+        }
+
+        sendAnimationTransforms(interpolationDuration, viewersChanged);
+        lastRenderedYawRadians = yawRadians;
+        sentViewerGeneration = currentViewerGeneration;
+        animationState.markRendered();
+      }
+
       animationState.advance();
+      if (baseEntity == null && (animationState.animation() == null || animationState.complete())) {
+        frozen = true;
+      }
     }
   }
 
   public void setVisible(Player player, boolean visible) {
+    UUID playerId = player.getUniqueId();
     if (visible) {
+      hiddenPlayers.remove(playerId);
       showParts(player);
       showHitboxes(player);
-      return;
+    } else {
+      hiddenPlayers.add(playerId);
+      hideParts(player);
+      hideHitboxes(player);
     }
 
-    hideParts(player);
-    hideHitboxes(player);
+    refreshAnimationViewers();
   }
 
   public void remove() {
-    if (removed) {
-      return;
+    synchronized (animationLock) {
+      if (removed) {
+        return;
+      }
+      removed = true;
+      animationViewers = NmsAnimationPacketTransport.ViewerSnapshot.EMPTY;
+      viewerGeneration++;
     }
 
-    removed = true;
     removeParts();
     removeHitboxes();
     removeBaseEntity();
@@ -281,7 +347,8 @@ public final class RuntimeModel {
               new RuntimePart(part, display),
               boneCaches.get(part.bone()),
               localTransform(part.bone(), part.cube()),
-              new Matrix4f()));
+              new Matrix4f(),
+              new NmsAnimationPacketTransport.TransformState()));
     }
   }
 
@@ -348,6 +415,21 @@ public final class RuntimeModel {
         .ifPresent(animationState::play);
   }
 
+  private void initializeServerPose() {
+    Location initialLocation = origin();
+    currentYawRadians = baseEntity == null ? staticYawRadians : yawRadians(initialLocation);
+
+    synchronized (animationLock) {
+      CompiledAnimation.Frame frame = animationState.frame();
+      applyBoneTransform(blueprint.root(), updateRootTransform(currentYawRadians), frame);
+      for (PartRenderCache cache : parts) {
+        Matrix4f transform =
+            cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
+        applyInitialDisplayTransform(cache.runtime().display(), transform);
+      }
+    }
+  }
+
   private Optional<Animation> animation(String name) {
     return blueprint.animation(normalizeAnimationName(name));
   }
@@ -364,17 +446,15 @@ public final class RuntimeModel {
   }
 
   private boolean playAction(Optional<Animation> animation) {
-    if (manualAnimation) {
-      return false;
-    }
-
-    if (animation.isEmpty()) {
+    if (manualAnimation || animation.isEmpty()) {
       return false;
     }
 
     Animation action = animation.get();
-    playIfChanged(action);
-    actionEndsAtNanos = System.nanoTime() + actionDurationNanos(action);
+    synchronized (animationLock) {
+      playIfChangedLocked(action);
+      actionEndsAtNanos = System.nanoTime() + actionDurationNanos(action);
+    }
     return true;
   }
 
@@ -383,27 +463,24 @@ public final class RuntimeModel {
       return;
     }
 
-    if (actionEndsAtNanos > 0) {
-      if (nowNanos < actionEndsAtNanos && !animationState.complete()) {
-        return;
+    synchronized (animationLock) {
+      if (actionEndsAtNanos > 0) {
+        if (nowNanos < actionEndsAtNanos && !animationState.complete()) {
+          return;
+        }
+
+        actionEndsAtNanos = 0;
       }
 
-      actionEndsAtNanos = 0;
+      if (moving()) {
+        walkAnimation.ifPresent(this::playIfChangedLocked);
+      } else {
+        idleAnimation.ifPresent(this::playIfChangedLocked);
+      }
     }
-
-    if (moving()) {
-      playLocomotion(walkAnimation);
-      return;
-    }
-
-    playLocomotion(idleAnimation);
   }
 
-  private void playLocomotion(Optional<Animation> animation) {
-    animation.ifPresent(this::playIfChanged);
-  }
-
-  private void playIfChanged(Animation animation) {
+  private void playIfChangedLocked(Animation animation) {
     if (!animationState.playing(animation.name())) {
       frozen = false;
       animationState.play(animation);
@@ -436,16 +513,16 @@ public final class RuntimeModel {
     }
   }
 
-  private void updateVisuals() {
+  private void updateMainThreadVisuals() {
     Location currentLocation;
-    float currentYawRadians;
+    float yawRadians;
 
     if (baseEntity == null) {
       currentLocation = staticOrigin;
-      currentYawRadians = staticYawRadians;
+      yawRadians = staticYawRadians;
     } else {
       currentLocation = baseEntity.getLocation();
-      currentYawRadians = yawRadians(currentLocation);
+      yawRadians = yawRadians(currentLocation);
       currentLocation.setYaw(0);
       currentLocation.setPitch(0);
     }
@@ -455,25 +532,26 @@ public final class RuntimeModel {
       return;
     }
 
-    boolean yawChanged = Float.compare(currentYawRadians, lastRenderedYawRadians) != 0;
-    boolean transformDirty = animationState.dirty() || yawChanged;
-    if (transformDirty) {
-      CompiledAnimation.Frame animationFrame = animationState.frame();
-      applyBoneTransform(blueprint.root(), updateRootTransform(currentYawRadians), animationFrame);
+    currentYawRadians = yawRadians;
+    teleportParts(currentLocation);
+    refreshAnimationViewers();
 
-      int interpolationDuration = animationState.interpolationDurationTicks();
-      if (animationFrame != null && animationFrame.skipInterpolation()) {
-        interpolationDuration = 0;
-      }
+    synchronized (animationLock) {
+      updateHitboxes(world, currentLocation);
+    }
+  }
 
-      updateParts(currentLocation, interpolationDuration);
-      lastRenderedYawRadians = currentYawRadians;
-      animationState.markRendered();
-    } else {
-      teleportParts(currentLocation);
+  private void refreshAnimationViewers() {
+    if (parts.isEmpty()) {
+      return;
     }
 
-    updateHitboxes(world, currentLocation);
+    NmsAnimationPacketTransport.ViewerSnapshot next =
+        NmsAnimationPacketTransport.snapshotViewers(parts.getFirst().runtime().display(), hiddenPlayers);
+    if (!next.playerIds().equals(animationViewers.playerIds())) {
+      viewerGeneration++;
+    }
+    animationViewers = next;
   }
 
   private Matrix4f updateRootTransform(float yawRadians) {
@@ -535,13 +613,19 @@ public final class RuntimeModel {
     return sample == null ? DEFAULT_SAMPLE : sample;
   }
 
-  private void updateParts(Location rootLocation, int interpolationDuration) {
+  private void sendAnimationTransforms(int interpolationDuration, boolean force) {
+    NmsAnimationPacketTransport.Batch batch = NmsAnimationPacketTransport.batch();
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      applyDisplayTransform(
-          rootLocation, cache.runtime().display(), transform, interpolationDuration);
+      batch.add(
+          cache.runtime().display().getEntityId(),
+          transform,
+          interpolationDuration,
+          force,
+          cache.packetState());
     }
+    batch.send(animationViewers);
   }
 
   private void teleportParts(Location rootLocation) {
@@ -597,10 +681,8 @@ public final class RuntimeModel {
     return center;
   }
 
-  private static void applyDisplayTransform(
-      Location rootLocation, ItemDisplay display, Matrix4f transform, int interpolationDuration) {
-    display.teleport(rootLocation);
-    display.setInterpolationDuration(Math.max(0, interpolationDuration));
+  private static void applyInitialDisplayTransform(ItemDisplay display, Matrix4f transform) {
+    display.setInterpolationDuration(0);
     if (DisplayTransform.canUseDirectTrs(transform)) {
       display.setTransformation(DisplayTransform.directTrs(transform));
     } else {
@@ -670,7 +752,11 @@ public final class RuntimeModel {
   }
 
   private record PartRenderCache(
-      RuntimePart runtime, BoneRenderCache bone, Matrix4f localTransform, Matrix4f transform) {}
+      RuntimePart runtime,
+      BoneRenderCache bone,
+      Matrix4f localTransform,
+      Matrix4f transform,
+      NmsAnimationPacketTransport.TransformState packetState) {}
 
   private record HitboxRenderCache(
       RuntimeHitbox runtime,
