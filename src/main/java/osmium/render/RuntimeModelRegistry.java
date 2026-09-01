@@ -19,6 +19,7 @@ public final class RuntimeModelRegistry {
   private final Plugin plugin;
   private final NamespacedKey runtimeModelKey;
   private final Map<Integer, RuntimeModel> models = new LinkedHashMap<>();
+  private volatile RuntimeModel[] animationSnapshot = new RuntimeModel[0];
 
   public RuntimeModelRegistry(Plugin plugin, NamespacedKey runtimeModelKey) {
     this.plugin = plugin;
@@ -41,6 +42,7 @@ public final class RuntimeModelRegistry {
         new RuntimeModel(
             id, plugin, runtimeModelKey, settings, blueprint, location, animation, baseEntity);
     models.put(id, model);
+    refreshAnimationSnapshot();
     return model;
   }
 
@@ -59,28 +61,54 @@ public final class RuntimeModelRegistry {
     }
 
     model.remove();
+    refreshAnimationSnapshot();
     return true;
   }
 
+  /** Main-thread Bukkit lifecycle tick. */
   public void tick() {
     Iterator<RuntimeModel> iterator = models.values().iterator();
+    boolean changed = false;
 
     while (iterator.hasNext()) {
       RuntimeModel model = iterator.next();
       if (model.removed()) {
         iterator.remove();
+        changed = true;
         continue;
       }
 
       model.tick();
+      if (model.removed()) {
+        iterator.remove();
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      refreshAnimationSnapshot();
+    }
+  }
+
+  /** Packet-only 25 ms animation tick; never touches the mutable registry map. */
+  public void animationTick() {
+    for (RuntimeModel model : animationSnapshot) {
+      model.animationTick();
     }
   }
 
   public void removeAll() {
-    for (RuntimeModel model : models.values()) {
+    RuntimeModel[] snapshot = animationSnapshot;
+    animationSnapshot = new RuntimeModel[0];
+
+    for (RuntimeModel model : snapshot) {
       model.remove();
     }
 
     models.clear();
+  }
+
+  private void refreshAnimationSnapshot() {
+    animationSnapshot = models.values().toArray(RuntimeModel[]::new);
   }
 }

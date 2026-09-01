@@ -6,6 +6,7 @@ import osmium.math.Vec3;
 
 public final class Channel {
   private static final double MIN_SEGMENT_DURATION = 1.0E-9;
+  private static final double KEYFRAME_TIME_EPSILON = 1.0E-9;
   private static final int BEZIER_SOLVER_ITERATIONS = 24;
 
   private final Vec3 fallback;
@@ -17,6 +18,11 @@ public final class Channel {
 
   public void add(Keyframe frame) {
     frames.add(insertionIndex(frame), frame);
+  }
+
+  /** Returns the authored keyframes in chronological order for load-time compilation. */
+  public List<Keyframe> frames() {
+    return List.copyOf(frames);
   }
 
   public Vec3 sample(double time) {
@@ -47,13 +53,16 @@ public final class Channel {
 
   private Vec3 sampleOnce(double time) {
     Keyframe firstFrame = frames.getFirst();
-    if (time <= firstFrame.time()) {
+    if (time <= firstFrame.time() + KEYFRAME_TIME_EPSILON) {
       return firstFrame.pre();
     }
 
     for (int index = 1; index < frames.size(); index++) {
       Keyframe nextFrame = frames.get(index);
-      if (time <= nextFrame.time()) {
+      if (approximatelyEqual(time, nextFrame.time())) {
+        return nextFrame.pre();
+      }
+      if (time < nextFrame.time()) {
         return sampleBetween(
             index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
       }
@@ -66,7 +75,7 @@ public final class Channel {
     Keyframe firstFrame = frames.getFirst();
     Keyframe lastFrame = frames.getLast();
 
-    if (time == firstFrame.time()) {
+    if (approximatelyEqual(time, firstFrame.time())) {
       return firstFrame.pre();
     }
 
@@ -77,7 +86,10 @@ public final class Channel {
 
     for (int index = 1; index < frames.size(); index++) {
       Keyframe nextFrame = frames.get(index);
-      if (time <= nextFrame.time()) {
+      if (approximatelyEqual(time, nextFrame.time())) {
+        return nextFrame.pre();
+      }
+      if (time < nextFrame.time()) {
         return sampleBetween(
             index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), true);
       }
@@ -256,6 +268,10 @@ public final class Channel {
 
   private static double clamp01(double value) {
     return Math.clamp(value, 0, 1);
+  }
+
+  private static boolean approximatelyEqual(double first, double second) {
+    return Math.abs(first - second) <= KEYFRAME_TIME_EPSILON;
   }
 
   private enum Axis {
