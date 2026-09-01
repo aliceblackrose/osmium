@@ -3,11 +3,15 @@ package osmium;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import osmium.animation.AnimationCompiler;
 import osmium.command.ModelCommand;
 import osmium.model.ModelManager;
 import osmium.pack.ResourcePackGenerator;
@@ -20,6 +24,7 @@ public final class OsmiumPlugin extends JavaPlugin {
   private RuntimeModelRegistry runtimeRegistry;
   private NamespacedKey runtimeModelKey;
   private BukkitTask tickTask;
+  private ScheduledExecutorService animationExecutor;
 
   @Override
   public void onEnable() {
@@ -35,10 +40,12 @@ public final class OsmiumPlugin extends JavaPlugin {
     registerCommands();
     registerListeners();
     startTickTask();
+    startAnimationRenderer();
   }
 
   @Override
   public void onDisable() {
+    stopAnimationRenderer();
     stopTickTask();
 
     if (runtimeRegistry != null) {
@@ -120,6 +127,39 @@ public final class OsmiumPlugin extends JavaPlugin {
 
     tickTask.cancel();
     tickTask = null;
+  }
+
+  private void startAnimationRenderer() {
+    animationExecutor =
+        Executors.newSingleThreadScheduledExecutor(
+            runnable -> {
+              Thread thread = new Thread(runnable, "Osmium Animation Renderer");
+              thread.setDaemon(true);
+              return thread;
+            });
+
+    animationExecutor.scheduleAtFixedRate(
+        this::runAnimationTick,
+        AnimationCompiler.TRANSPORT_STEP_MILLIS,
+        AnimationCompiler.TRANSPORT_STEP_MILLIS,
+        TimeUnit.MILLISECONDS);
+  }
+
+  private void runAnimationTick() {
+    try {
+      runtimeRegistry.animationTick();
+    } catch (Throwable throwable) {
+      getLogger().log(Level.SEVERE, "Packet animation renderer tick failed.", throwable);
+    }
+  }
+
+  private void stopAnimationRenderer() {
+    if (animationExecutor == null) {
+      return;
+    }
+
+    animationExecutor.shutdownNow();
+    animationExecutor = null;
   }
 
   private void createDataFolders() {
