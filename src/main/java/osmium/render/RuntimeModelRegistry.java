@@ -60,8 +60,8 @@ public final class RuntimeModelRegistry {
       return false;
     }
 
-    refreshAnimationSnapshot();
     model.remove();
+    refreshAnimationSnapshot();
     return true;
   }
 
