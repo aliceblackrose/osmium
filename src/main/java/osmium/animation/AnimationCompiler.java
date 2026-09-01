@@ -68,17 +68,17 @@ public final class AnimationCompiler {
   }
 
   /**
-   * Converts 25 ms packet steps into Minecraft's 50 ms interpolation ticks without allowing the
-   * client interpolation window to outlive the transport interval. A one-step transition therefore
-   * snaps at 40 Hz instead of starting a 50 ms interpolation that would still be running when the
-   * next packet arrives.
+   * Converts 25 ms packet steps into Minecraft's 50 ms interpolation ticks. Durations round upward
+   * so every non-step transition receives at least one client interpolation tick; a new target can
+   * arrive while the previous interpolation is still in progress without introducing a hard snap.
    */
   public static int clientInterpolationTicks(int transportSteps) {
     if (transportSteps <= 0) {
       return 0;
     }
 
-    return transportSteps / 2;
+    double seconds = transportSteps * TRANSPORT_STEP_SECONDS;
+    return Math.max(1, (int) Math.ceil(seconds / MINECRAFT_TICK_SECONDS));
   }
 
   private static void collectAuthoredTimes(
