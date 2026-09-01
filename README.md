@@ -187,8 +187,8 @@ For mob-attached models, Osmium attempts to use common animation names such as:
 Clone the repository:
 
 ```bash
-git clone https://github.com/cybellereaper/Osmium.git
-cd Osmium
+git clone https://github.com/aliceblackrose/osmium.git
+cd osmium
 ```
 
 Build with Gradle:
@@ -208,6 +208,38 @@ On Windows, use:
 ```bat
 gradlew.bat clean build
 ```
+
+## Using Osmium as a dependency
+
+Osmium is published through JitPack. Add JitPack to your repositories:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven("https://repo.papermc.io/repository/maven-public/")
+        maven("https://jitpack.io")
+    }
+}
+```
+
+Then depend on a Git tag or commit:
+
+```kotlin
+dependencies {
+    compileOnly("com.github.aliceblackrose:osmium:<tag>")
+}
+```
+
+For the latest `master` snapshot:
+
+```kotlin
+dependencies {
+    compileOnly("com.github.aliceblackrose:osmium:master-SNAPSHOT")
+}
+```
+
+Use `compileOnly` when Osmium is installed separately as a Paper plugin at runtime.
 
 ## Development notes
 
