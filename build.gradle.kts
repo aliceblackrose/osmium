@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.github.cybellereaper.osmium"
-version = "1.0.2"
+version = "1.0.2a"
 
 val pluginVersion = version.toString()
 
