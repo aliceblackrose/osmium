@@ -13,13 +13,15 @@ import osmium.model.Bone;
 /**
  * Compiles authored Blockbench channels into a common runtime frame stream.
  *
- * <p>This deliberately follows the architecture used by BetterModel: curve evaluation is a
- * pre-playback concern, every animated bone shares the same frame boundaries, step transitions get
- * an explicit pre-step frame, and large hierarchical rotations are subdivided before Minecraft
- * interpolates them. Because Osmium currently uses Bukkit's 20 TPS entity API rather than a 25 ms
- * packet tracker, compiled times are quantized to Minecraft server ticks.
+ * <p>This follows the same broad architecture as BetterModel: curve evaluation is a pre-playback
+ * concern, every animated bone shares the same frame boundaries, step transitions get an explicit
+ * pre-step frame, and large hierarchical rotations are subdivided before Minecraft interpolates
+ * them. The packet renderer consumes the resulting timeline at 25 ms resolution while Minecraft's
+ * own display interpolation duration remains expressed in 50 ms client ticks.
  */
 public final class AnimationCompiler {
+  public static final long TRANSPORT_STEP_MILLIS = 25L;
+  public static final double TRANSPORT_STEP_SECONDS = TRANSPORT_STEP_MILLIS / 1000.0D;
   public static final double MINECRAFT_TICK_SECONDS = 0.05D;
 
   private static final double MAX_ROTATION_STEP_DEGREES = 90.0D;
@@ -30,7 +32,7 @@ public final class AnimationCompiler {
 
   public static CompiledAnimation compile(
       Animation animation, Bone rootBone, int interpolationDurationTicks) {
-    double runtimeLength = quantizeTime(Math.max(animation.length(), MINECRAFT_TICK_SECONDS));
+    double runtimeLength = quantizeTime(Math.max(animation.length(), TRANSPORT_STEP_SECONDS));
     TreeSet<Double> frameTimes = new TreeSet<>();
     Set<Long> stepTargets = new HashSet<>();
 
@@ -55,14 +57,23 @@ public final class AnimationCompiler {
             entry.getValue().sample(sampleTime, animation.loop(), animation.length()));
       }
 
-      int durationTicks = index == 0 ? 0 : ticksBetween(previousTime, time);
+      int durationSteps = index == 0 ? 0 : stepsBetween(previousTime, time);
       frames.add(
           new CompiledAnimation.Frame(
-              time, durationTicks, stepTargets.contains(timeKey(time)), poses));
+              time, durationSteps, stepTargets.contains(timeKey(time)), poses));
       previousTime = time;
     }
 
     return new CompiledAnimation(animation.name(), runtimeLength, animation.loopMode(), frames);
+  }
+
+  public static int clientInterpolationTicks(int transportSteps) {
+    if (transportSteps <= 0) {
+      return 0;
+    }
+
+    double seconds = transportSteps * TRANSPORT_STEP_SECONDS;
+    return Math.max(1, (int) Math.ceil(seconds / MINECRAFT_TICK_SECONDS));
   }
 
   private static void collectAuthoredTimes(
@@ -93,7 +104,7 @@ public final class AnimationCompiler {
       double first = authored.get(index - 1);
       double second = authored.get(index);
       for (double time = first + frameSeconds;
-          time < second - MINECRAFT_TICK_SECONDS + EPSILON;
+          time < second - TRANSPORT_STEP_SECONDS + EPSILON;
           time += frameSeconds) {
         addTime(frameTimes, time, runtimeLength);
       }
@@ -122,7 +133,7 @@ public final class AnimationCompiler {
       double targetTime = clampedTime(next.time(), runtimeLength);
       stepTargets.add(timeKey(targetTime));
 
-      double holdTime = targetTime - MINECRAFT_TICK_SECONDS;
+      double holdTime = targetTime - TRANSPORT_STEP_SECONDS;
       if (holdTime + EPSILON >= previous.time()) {
         addTime(frameTimes, holdTime, runtimeLength);
       }
@@ -141,12 +152,9 @@ public final class AnimationCompiler {
         continue;
       }
 
-      // BetterModel subdivides high angular deltas. Osmium cannot safely send Bukkit display
-      // updates faster than a server tick, so use every transport slot available inside the risky
-      // interval.
-      for (double time = previous + MINECRAFT_TICK_SECONDS;
+      for (double time = previous + TRANSPORT_STEP_SECONDS;
           time < next - EPSILON;
-          time += MINECRAFT_TICK_SECONDS) {
+          time += TRANSPORT_STEP_SECONDS) {
         addTime(frameTimes, time, runtimeLength);
       }
     }
@@ -205,8 +213,8 @@ public final class AnimationCompiler {
     return Math.sqrt(vector.x() * vector.x() + vector.y() * vector.y() + vector.z() * vector.z());
   }
 
-  private static int ticksBetween(double previous, double next) {
-    return Math.max(1, (int) Math.round((next - previous) / MINECRAFT_TICK_SECONDS));
+  private static int stepsBetween(double previous, double next) {
+    return Math.max(1, (int) Math.round((next - previous) / TRANSPORT_STEP_SECONDS));
   }
 
   private static void addTime(Set<Double> times, double time, double runtimeLength) {
@@ -218,8 +226,8 @@ public final class AnimationCompiler {
   }
 
   private static double quantizeTime(double time) {
-    double ticks = Math.round(time / MINECRAFT_TICK_SECONDS);
-    return Math.rint(ticks * MINECRAFT_TICK_SECONDS * TIME_SCALE) / TIME_SCALE;
+    double steps = Math.round(time / TRANSPORT_STEP_SECONDS);
+    return Math.rint(steps * TRANSPORT_STEP_SECONDS * TIME_SCALE) / TIME_SCALE;
   }
 
   private static long timeKey(double time) {
