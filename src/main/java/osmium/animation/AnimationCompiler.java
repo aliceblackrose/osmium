@@ -78,7 +78,8 @@ public final class AnimationCompiler {
     }
 
     double seconds = transportSteps * TRANSPORT_STEP_SECONDS;
-    return Math.max(1, (int) Math.ceil(seconds / MINECRAFT_TICK_SECONDS));
+    double clientTicks = seconds / MINECRAFT_TICK_SECONDS;
+    return Math.max(1, (int) Math.ceil(clientTicks - EPSILON));
   }
 
   private static void collectAuthoredTimes(
