@@ -46,7 +46,9 @@ public final class TransformDecomposition {
     return determinant3x3(matrix) > 0.0F;
   }
 
-  /** Extracts a stable direct-TRS representation. Call only when {@link #canUseDirectTrs} is true. */
+  /**
+   * Extracts a stable direct-TRS representation. Call only when {@link #canUseDirectTrs} is true.
+   */
   public static Components direct(Matrix4f matrix) {
     return new Components(
         matrix.getTranslation(new Vector3f()),
