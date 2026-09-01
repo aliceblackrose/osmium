@@ -79,8 +79,7 @@ public final class AnimationCompiler {
     }
 
     long durationMillis = (long) transportSteps * TRANSPORT_STEP_MILLIS;
-    return (int)
-        ((durationMillis + MINECRAFT_TICK_MILLIS - 1L) / MINECRAFT_TICK_MILLIS);
+    return (int) ((durationMillis + MINECRAFT_TICK_MILLIS - 1L) / MINECRAFT_TICK_MILLIS);
   }
 
   private static void collectAuthoredTimes(
