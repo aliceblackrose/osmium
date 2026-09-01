@@ -98,7 +98,7 @@ final class OverlayDepthBias {
 
       double minimumGap = supportMinimum - overlayMinimum;
       double minimumPenetration = overlayMaximum - supportMinimum;
-      if (minimumGap >= 0
+      if (minimumGap > FLAT_AXIS_EPSILON
           && minimumGap <= MAX_SURFACE_DISTANCE
           && minimumPenetration > FLAT_AXIS_EPSILON
           && minimumPenetration <= MAX_EMBEDDED_DEPTH) {
@@ -107,7 +107,7 @@ final class OverlayDepthBias {
 
       double maximumGap = overlayMaximum - supportMaximum;
       double maximumPenetration = supportMaximum - overlayMinimum;
-      if (maximumGap >= 0
+      if (maximumGap > FLAT_AXIS_EPSILON
           && maximumGap <= MAX_SURFACE_DISTANCE
           && maximumPenetration > FLAT_AXIS_EPSILON
           && maximumPenetration <= MAX_EMBEDDED_DEPTH) {
