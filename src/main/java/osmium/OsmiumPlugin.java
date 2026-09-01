@@ -15,7 +15,7 @@ import org.bukkit.scheduler.BukkitTask;
 import osmium.animation.AnimationCompiler;
 import osmium.command.ModelCommand;
 import osmium.model.ModelManager;
-import osmium.pack.ResourcePackGenerator;
+import osmium.pack.ResourcePackCompiler;
 import osmium.render.RuntimeModelListener;
 import osmium.render.RuntimeModelRegistry;
 
@@ -76,14 +76,14 @@ public final class OsmiumPlugin extends JavaPlugin {
   }
 
   public Path generatePack() throws IOException {
-    return new ResourcePackGenerator(
+    return new ResourcePackCompiler(
             getLogger(),
             settings.resourcePackFolder(),
             settings.namespace(),
             settings.customModelDataStart(),
             settings.baseItem(),
             settings.packFormat())
-        .generate(modelManager.models());
+        .compile(modelManager.models());
   }
 
   public PluginSettings settings() {
