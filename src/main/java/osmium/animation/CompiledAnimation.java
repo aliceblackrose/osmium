@@ -29,11 +29,11 @@ public record CompiledAnimation(
 
   public record Frame(
       double time,
-      int durationTicks,
+      int durationSteps,
       boolean skipInterpolation,
       Map<String, BoneTimeline.Sample> poses) {
     public Frame {
-      durationTicks = Math.max(0, durationTicks);
+      durationSteps = Math.max(0, durationSteps);
       poses = Collections.unmodifiableMap(new LinkedHashMap<>(poses));
     }
 
