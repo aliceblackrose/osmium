@@ -44,8 +44,7 @@ final class OverlayDepthBiasTest {
     head.addChild(eyebrow);
 
     Cube headCube = cube("head-cube", new Vec3(-28, 24, -4), new Vec3(-20, 34, 4));
-    Cube eyebrowCube =
-        cube("eyebrow-cube", new Vec3(-27, 28, -4.025), new Vec3(-21, 29, -2.025));
+    Cube eyebrowCube = cube("eyebrow-cube", new Vec3(-27, 28, -4.025), new Vec3(-21, 29, -2.025));
     head.addCube(headCube.uuid());
     eyebrow.addCube(eyebrowCube.uuid());
 
