@@ -46,12 +46,7 @@ public final class ResourcePackCompiler {
     try {
       Path stagedPack =
           new ResourcePackGenerator(
-                  logger,
-                  stagingFolder,
-                  namespace,
-                  customModelDataStart,
-                  baseItem,
-                  packFormat)
+                  logger, stagingFolder, namespace, customModelDataStart, baseItem, packFormat)
               .generate(models);
 
       Path packPath = outputFolder.resolve(GENERATED_PACK_NAME);
