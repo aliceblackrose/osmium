@@ -74,13 +74,13 @@ final class AnimationCompilerTest {
   }
 
   @Test
-  void clientInterpolationNeverOutlivesPacketTransportInterval() {
+  void clientInterpolationRoundsUpToPreserveContinuity() {
     assertEquals(0, AnimationCompiler.clientInterpolationTicks(0));
-    assertEquals(0, AnimationCompiler.clientInterpolationTicks(1));
+    assertEquals(1, AnimationCompiler.clientInterpolationTicks(1));
     assertEquals(1, AnimationCompiler.clientInterpolationTicks(2));
-    assertEquals(1, AnimationCompiler.clientInterpolationTicks(3));
+    assertEquals(2, AnimationCompiler.clientInterpolationTicks(3));
     assertEquals(2, AnimationCompiler.clientInterpolationTicks(4));
-    assertEquals(2, AnimationCompiler.clientInterpolationTicks(5));
+    assertEquals(3, AnimationCompiler.clientInterpolationTicks(5));
     assertEquals(3, AnimationCompiler.clientInterpolationTicks(6));
   }
 
