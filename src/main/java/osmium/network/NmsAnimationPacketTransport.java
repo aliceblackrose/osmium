@@ -23,6 +23,7 @@ import org.bukkit.entity.Player;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import osmium.math.TransformDecomposition;
 
 /**
  * Direct vanilla-packet transport for sub-tick display animation updates.
@@ -119,11 +120,11 @@ public final class NmsAnimationPacketTransport {
 
     private ClientboundSetEntityDataPacket createPacket(
         int entityId, Matrix4f matrix, int interpolationDurationTicks, boolean force) {
-      Transformation transformation = new Transformation(new Matrix4f(matrix));
-      Vector3f nextTranslation = new Vector3f(transformation.translation());
-      Vector3f nextScale = new Vector3f(transformation.scale());
-      Quaternionf nextLeft = new Quaternionf(transformation.leftRotation()).normalize();
-      Quaternionf nextRight = new Quaternionf(transformation.rightRotation()).normalize();
+      Components components = components(matrix);
+      Vector3f nextTranslation = components.translation();
+      Vector3f nextScale = components.scale();
+      Quaternionf nextLeft = components.leftRotation();
+      Quaternionf nextRight = components.rightRotation();
 
       if (initialized) {
         keepSameHemisphere(nextLeft, leftRotation);
@@ -171,6 +172,21 @@ public final class NmsAnimationPacketTransport {
     }
   }
 
+  static Components components(Matrix4f matrix) {
+    if (TransformDecomposition.canUseDirectTrs(matrix)) {
+      TransformDecomposition.Components direct = TransformDecomposition.direct(matrix);
+      return new Components(
+          direct.translation(), direct.scale(), direct.leftRotation(), direct.rightRotation());
+    }
+
+    Transformation transformation = new Transformation(new Matrix4f(matrix));
+    return new Components(
+        transformation.translation(),
+        transformation.scale(),
+        transformation.leftRotation(),
+        transformation.rightRotation());
+  }
+
   static void keepSameHemisphere(Quaternionf quaternion, Quaternionf previous) {
     if (quaternion.dot(previous) < 0.0F) {
       quaternion.mul(-1.0F);
@@ -200,6 +216,16 @@ public final class NmsAnimationPacketTransport {
         && Math.abs(first.y - second.y) <= COMPONENT_EPSILON
         && Math.abs(first.z - second.z) <= COMPONENT_EPSILON
         && Math.abs(first.w - second.w) <= COMPONENT_EPSILON;
+  }
+
+  record Components(
+      Vector3f translation, Vector3f scale, Quaternionf leftRotation, Quaternionf rightRotation) {
+    Components {
+      translation = new Vector3f(translation);
+      scale = new Vector3f(scale);
+      leftRotation = new Quaternionf(leftRotation).normalize();
+      rightRotation = new Quaternionf(rightRotation).normalize();
+    }
   }
 
   private record Accessors(
