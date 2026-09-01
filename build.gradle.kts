@@ -15,6 +15,9 @@ java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
+paperweight.reobfArtifactConfiguration =
+    io.papermc.paperweight.userdev.ReobfArtifactConfiguration.MOJANG_PRODUCTION
+
 dependencies {
     paperweight.paperDevBundle("26.1.2.build.+")
 
