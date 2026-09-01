@@ -87,10 +87,10 @@ public final class RuntimeModel {
   private volatile boolean removed;
   private volatile boolean frozen;
   private volatile float currentYawRadians;
-  private volatile NmsAnimationPacketTransport.ViewerSnapshot animationViewers =
-      NmsAnimationPacketTransport.ViewerSnapshot.EMPTY;
-  private volatile long viewerGeneration;
 
+  private NmsAnimationPacketTransport.ViewerSnapshot animationViewers =
+      NmsAnimationPacketTransport.ViewerSnapshot.EMPTY;
+  private long viewerGeneration;
   private boolean manualAnimation;
   private boolean deathAnimationStarted;
   private long actionEndsAtNanos;
@@ -226,7 +226,8 @@ public final class RuntimeModel {
 
   /**
    * 25 ms packet-render tick. This method must not call Bukkit APIs; it only consumes main-thread
-   * snapshots, computes local matrices, and sends vanilla packets through cached player connections.
+   * snapshots, computes local matrices, and sends vanilla packets through cached player
+   * connections.
    */
   public void animationTick() {
     if (removed || (baseEntity == null && frozen)) {
@@ -416,12 +417,15 @@ public final class RuntimeModel {
   }
 
   private void initializeServerPose() {
-    Location initialLocation = origin();
-    currentYawRadians = baseEntity == null ? staticYawRadians : yawRadians(initialLocation);
+    float initialYawRadians = staticYawRadians;
+    if (baseEntity != null) {
+      initialYawRadians = yawRadians(baseEntity.getLocation());
+    }
+    currentYawRadians = initialYawRadians;
 
     synchronized (animationLock) {
       CompiledAnimation.Frame frame = animationState.frame();
-      applyBoneTransform(blueprint.root(), updateRootTransform(currentYawRadians), frame);
+      applyBoneTransform(blueprint.root(), updateRootTransform(initialYawRadians), frame);
       for (PartRenderCache cache : parts) {
         Matrix4f transform =
             cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
@@ -547,11 +551,14 @@ public final class RuntimeModel {
     }
 
     NmsAnimationPacketTransport.ViewerSnapshot next =
-        NmsAnimationPacketTransport.snapshotViewers(parts.getFirst().runtime().display(), hiddenPlayers);
-    if (!next.playerIds().equals(animationViewers.playerIds())) {
-      viewerGeneration++;
+        NmsAnimationPacketTransport.snapshotViewers(
+            parts.getFirst().runtime().display(), hiddenPlayers);
+    synchronized (animationLock) {
+      if (!next.playerIds().equals(animationViewers.playerIds())) {
+        viewerGeneration++;
+      }
+      animationViewers = next;
     }
-    animationViewers = next;
   }
 
   private Matrix4f updateRootTransform(float yawRadians) {
