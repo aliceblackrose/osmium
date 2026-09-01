@@ -132,8 +132,7 @@ public final class AnimationState {
       interpolationDurationTicks =
           seamFrame.skipInterpolation()
               ? 0
-              : Math.max(
-                  1, AnimationCompiler.clientInterpolationTicks(seamFrame.durationSteps()));
+              : Math.max(1, AnimationCompiler.clientInterpolationTicks(seamFrame.durationSteps()));
       frameIndex = 0;
     } else {
       interpolationDurationTicks =
