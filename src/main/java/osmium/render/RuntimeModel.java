@@ -346,6 +346,7 @@ public final class RuntimeModel {
       parts.add(
           new PartRenderCache(
               new RuntimePart(part, display),
+              display.getEntityId(),
               boneCaches.get(part.bone()),
               localTransform(part.bone(), part.cube()),
               new Matrix4f(),
@@ -626,11 +627,7 @@ public final class RuntimeModel {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
       batch.add(
-          cache.runtime().display().getEntityId(),
-          transform,
-          interpolationDuration,
-          force,
-          cache.packetState());
+          cache.entityId(), transform, interpolationDuration, force, cache.packetState());
     }
     batch.send(animationViewers);
   }
@@ -760,6 +757,7 @@ public final class RuntimeModel {
 
   private record PartRenderCache(
       RuntimePart runtime,
+      int entityId,
       BoneRenderCache bone,
       Matrix4f localTransform,
       Matrix4f transform,
