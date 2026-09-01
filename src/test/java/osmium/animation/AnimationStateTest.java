@@ -11,7 +11,7 @@ import osmium.model.Bone;
 
 final class AnimationStateTest {
   @Test
-  void playbackHonorsCompiledFrameDurations() {
+  void playbackHonorsCompiledFrameDurationsAtFortyHertz() {
     Animation animation = new Animation("once", 0.15, AnimationLoopMode.ONCE, Map.of());
     AnimationState state = configuredState(2);
     state.play(animation);
@@ -22,6 +22,8 @@ final class AnimationStateTest {
 
     state.markRendered();
     state.advance();
+    state.advance();
+    state.advance();
     assertEquals(0.0, state.frame().time());
     assertFalse(state.dirty());
 
@@ -31,6 +33,8 @@ final class AnimationStateTest {
     assertTrue(state.dirty());
 
     state.markRendered();
+    state.advance();
+    assertEquals(0.10, state.frame().time());
     state.advance();
     assertEquals(0.15, state.frame().time());
     assertEquals(1, state.interpolationDurationTicks());
@@ -50,9 +54,13 @@ final class AnimationStateTest {
 
     state.markRendered();
     state.advance();
+    assertEquals(0.0, state.frame().time());
+    state.advance();
     assertEquals(0.05, state.frame().time());
 
     state.markRendered();
+    state.advance();
+    assertEquals(0.05, state.frame().time());
     state.advance();
     assertEquals(0.0, state.frame().time());
     assertEquals(1, state.interpolationDurationTicks());
