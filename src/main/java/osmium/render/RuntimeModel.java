@@ -626,8 +626,7 @@ public final class RuntimeModel {
     for (PartRenderCache cache : parts) {
       Matrix4f transform =
           cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
-      batch.add(
-          cache.entityId(), transform, interpolationDuration, force, cache.packetState());
+      batch.add(cache.entityId(), transform, interpolationDuration, force, cache.packetState());
     }
     batch.send(animationViewers);
   }
