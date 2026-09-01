@@ -9,7 +9,7 @@ auto-generate-pack-on-reload: true
 render:
   # Maximum spacing between compiled animation targets. BetterModel v3 defaults to 3 ticks;
   # Osmium keeps the same cap while the packet renderer itself advances every 25 ms.
-  interpolation-duration: 3
+  interpolation-duration: 1
   teleport-duration: 1
   view-range: 64.0
   shadow-radius: 0.0
