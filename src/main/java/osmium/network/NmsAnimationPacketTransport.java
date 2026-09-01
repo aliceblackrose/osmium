@@ -146,7 +146,8 @@ public final class NmsAnimationPacketTransport {
       List<SynchedEntityData.DataValue<?>> values = new ArrayList<>(6);
       values.add(
           SynchedEntityData.DataValue.create(
-              ACCESSORS.interpolationDelay(), interpolationStartDeltaTicks(interpolationDurationTicks)));
+              ACCESSORS.interpolationDelay(),
+              interpolationStartDeltaTicks(interpolationDurationTicks)));
       values.add(
           SynchedEntityData.DataValue.create(
               ACCESSORS.interpolationDuration(), Math.max(0, interpolationDurationTicks)));
