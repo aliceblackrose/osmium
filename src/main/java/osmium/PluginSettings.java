@@ -17,6 +17,7 @@ public record PluginSettings(
     int interpolationDuration,
     int teleportDuration,
     float viewRange,
+    boolean shadowsEnabled,
     float shadowRadius,
     float shadowStrength,
     boolean brightnessOverride,
@@ -38,7 +39,7 @@ public record PluginSettings(
 
   private static final double DEFAULT_RENDER_SCALE = 1.0;
   private static final double DEFAULT_SHADOW_RADIUS = 0.0;
-  private static final double DEFAULT_SHADOW_STRENGTH = 0.0;
+  private static final double DEFAULT_SHADOW_STRENGTH = 0.75;
   private static final double DEFAULT_VIEW_RANGE = 64.0;
   private static final double MIN_RENDER_SCALE = 0.0001;
 
@@ -61,8 +62,9 @@ public record PluginSettings(
         nonNegativeInt(config, "render.interpolation-duration", DEFAULT_INTERPOLATION_DURATION),
         nonNegativeInt(config, "render.teleport-duration", DEFAULT_TELEPORT_DURATION),
         positiveFloat(config),
+        config.getBoolean("render.shadow-enabled", true),
         nonNegativeFloat(config, "render.shadow-radius", DEFAULT_SHADOW_RADIUS),
-        nonNegativeFloat(config, "render.shadow-strength", DEFAULT_SHADOW_STRENGTH),
+        shadowStrength(config),
         config.getBoolean("render.brightness-override", false),
         brightness(config, "render.brightness-block"),
         brightness(config, "render.brightness-sky"),
@@ -108,6 +110,14 @@ public record PluginSettings(
 
   private static float nonNegativeFloat(FileConfiguration config, String key, double fallback) {
     return (float) Math.max(0.0, config.getDouble(key, fallback));
+  }
+
+  private static float shadowStrength(FileConfiguration config) {
+    double configured = config.getDouble("render.shadow-strength", DEFAULT_SHADOW_STRENGTH);
+    if (!config.contains("render.shadow-enabled") && configured == 0.0) {
+      configured = DEFAULT_SHADOW_STRENGTH;
+    }
+    return (float) Math.clamp(configured, 0.0, 1.0);
   }
 
   private static int brightness(FileConfiguration config, String key) {

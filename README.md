@@ -13,6 +13,7 @@ It loads `.bbmodel` files, converts model parts into resource-pack item models, 
 - Play model animations
 - Generate item model data from model parts
 - Support model hitboxes through interaction entities
+- Use native display shadows with automatic model-footprint sizing
 - Debug loaded models, textures, UVs, cubes, and animations
 - Rolling `latest` GitHub release builds
 
@@ -86,8 +87,9 @@ render:
   interpolation-duration: 1
   teleport-duration: 1
   view-range: 64.0
+  shadow-enabled: true
   shadow-radius: 0.0
-  shadow-strength: 0.0
+  shadow-strength: 0.75
   brightness-override: false
   brightness-block: 15
   brightness-sky: 15
@@ -108,11 +110,16 @@ render:
 | `resource-pack-folder` | Folder where generated resource pack files are written |
 | `auto-generate-pack-on-reload` | Automatically regenerates the pack when Osmium reloads |
 | `render.view-range` | Display entity view range |
+| `render.shadow-enabled` | Enables one native display shadow per model |
+| `render.shadow-radius` | Shadow radius; `0.0` automatically sizes it from the model's X/Z footprint and render scale |
+| `render.shadow-strength` | Native shadow opacity/strength from `0.0` to `1.0` |
 | `render.brightness-override` | When `false`, use vanilla world lighting; when `true`, force the block/sky brightness values below |
 | `render.brightness-block` | Fixed block-light override used when `render.brightness-override` is enabled |
 | `render.brightness-sky` | Fixed sky-light override used when `render.brightness-override` is enabled |
 | `render.scale` | Runtime render scale |
 | `render.ground-align` | Aligns rendered models to the ground |
+
+Osmium emits the shadow from a single root-anchored display instead of every model part. This avoids stacking many identical shadows at the same entity anchor. Native Minecraft display shadows are soft entity shadows; they are not geometry-projected or ray-traced shadows.
 
 ## Model workflow
 
