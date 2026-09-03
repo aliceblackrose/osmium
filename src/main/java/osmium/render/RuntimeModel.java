@@ -368,8 +368,12 @@ public final class RuntimeModel {
     display.setViewRange(settings.viewRange());
     display.setShadowRadius(settings.shadowRadius());
     display.setShadowStrength(settings.shadowStrength());
-    display.setBrightness(
-        new Display.Brightness(settings.brightnessBlock(), settings.brightnessSky()));
+    if (settings.brightnessOverride()) {
+      display.setBrightness(
+          new Display.Brightness(settings.brightnessBlock(), settings.brightnessSky()));
+    } else {
+      display.setBrightness(null);
+    }
     display.getPersistentDataContainer().set(runtimeModelKey, PersistentDataType.INTEGER, id);
   }
 
