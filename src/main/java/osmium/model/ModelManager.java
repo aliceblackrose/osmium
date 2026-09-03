@@ -26,16 +26,12 @@ public final class ModelManager {
 
   public void reload(PluginSettings settings) throws IOException {
     Files.createDirectories(settings.blueprintsFolder());
-    Files.createDirectories(settings.modelsFolder());
 
     Map<String, ModelBlueprint> nextModels = new LinkedHashMap<>();
     List<String> failures = new ArrayList<>();
     BlockbenchImporter importer = new BlockbenchImporter(logger, settings.namespace());
 
     load(importer, settings.blueprintsFolder(), nextModels, failures);
-    if (!settings.modelsFolder().equals(settings.blueprintsFolder())) {
-      load(importer, settings.modelsFolder(), nextModels, failures);
-    }
 
     if (!failures.isEmpty()) {
       throw new IOException(
