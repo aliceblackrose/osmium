@@ -12,9 +12,11 @@ render:
   interpolation-duration: 1
   teleport-duration: 1
   view-range: 64.0
+  # One native display shadow is emitted per model. Radius 0 auto-sizes from the model footprint.
+  shadow-enabled: true
   shadow-radius: 0.0
-  shadow-strength: 0.0
-  # false uses vanilla world lighting. Set true to force the fixed block/sky levels below.
+  shadow-strength: 0.75
+  # false uses per-part world lighting. Set true to force the fixed block/sky levels below.
   brightness-override: false
   brightness-block: 15
   brightness-sky: 15
