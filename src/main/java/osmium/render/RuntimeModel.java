@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
@@ -45,6 +46,7 @@ public final class RuntimeModel {
   private static final double ACTION_PADDING_SECONDS = 0.05D;
   private static final float MINIMUM_HITBOX_SIZE = 0.1F;
   private static final float MINIMUM_RENDER_SCALE_COMPONENT = 1.0E-4F;
+  private static final int LIGHTING_UPDATE_INTERVAL_TICKS = 2;
 
   private static final String[] IDLE_ANIMATIONS = {IDLE_ANIMATION_NAME, "stand", "standing"};
   private static final String[] WALK_ANIMATIONS = {
@@ -96,6 +98,7 @@ public final class RuntimeModel {
   private long actionEndsAtNanos;
   private float lastRenderedYawRadians = Float.NaN;
   private long sentViewerGeneration = -1L;
+  private int lightingTicksUntilUpdate;
 
   public RuntimeModel(
       int id,
@@ -189,9 +192,14 @@ public final class RuntimeModel {
     return played;
   }
 
-  /** Main-server-thread tick for entity lifecycle, movement, tracking, and hitboxes. */
+  /** Main-server-thread tick for entity lifecycle, movement, tracking, hitboxes, and lighting. */
   public void tick() {
-    if (removed || (baseEntity == null && frozen)) {
+    if (removed) {
+      return;
+    }
+
+    if (baseEntity == null && frozen) {
+      updateFrozenLighting();
       return;
     }
 
@@ -350,6 +358,7 @@ public final class RuntimeModel {
               boneCaches.get(part.bone()),
               localTransform(part.bone(), part.cube()),
               new Matrix4f(),
+              new PartLightState(),
               new NmsAnimationPacketTransport.TransformState()));
     }
   }
@@ -368,8 +377,12 @@ public final class RuntimeModel {
     display.setViewRange(settings.viewRange());
     display.setShadowRadius(settings.shadowRadius());
     display.setShadowStrength(settings.shadowStrength());
-    display.setBrightness(
-        new Display.Brightness(settings.brightnessBlock(), settings.brightnessSky()));
+    if (settings.brightnessOverride()) {
+      display.setBrightness(
+          new Display.Brightness(settings.brightnessBlock(), settings.brightnessSky()));
+    } else {
+      display.setBrightness(null);
+    }
     display.getPersistentDataContainer().set(runtimeModelKey, PersistentDataType.INTEGER, id);
   }
 
@@ -518,6 +531,21 @@ public final class RuntimeModel {
     }
   }
 
+  private void updateFrozenLighting() {
+    if (settings.brightnessOverride() || !lightingUpdateDue()) {
+      return;
+    }
+
+    World world = staticOrigin.getWorld();
+    if (world == null) {
+      return;
+    }
+
+    synchronized (animationLock) {
+      updatePartLighting(world, staticOrigin);
+    }
+  }
+
   private void updateMainThreadVisuals() {
     Location currentLocation;
     float yawRadians;
@@ -542,7 +570,50 @@ public final class RuntimeModel {
     refreshAnimationViewers();
 
     synchronized (animationLock) {
+      if (!settings.brightnessOverride() && lightingUpdateDue()) {
+        updatePartLighting(world, currentLocation);
+      }
       updateHitboxes(world, currentLocation);
+    }
+  }
+
+  private boolean lightingUpdateDue() {
+    if (lightingTicksUntilUpdate > 0) {
+      lightingTicksUntilUpdate--;
+      return false;
+    }
+
+    lightingTicksUntilUpdate = LIGHTING_UPDATE_INTERVAL_TICKS - 1;
+    return true;
+  }
+
+  private void updatePartLighting(World world, Location rootLocation) {
+    for (PartRenderCache cache : parts) {
+      Matrix4f transform =
+          cache.transform().set(cache.bone().transform()).mul(cache.localTransform());
+      Vector3f position = transform.getTranslation(new Vector3f());
+      int blockX = (int) Math.floor(rootLocation.getX() + position.x);
+      int blockY =
+          Math.clamp(
+              (int) Math.floor(rootLocation.getY() + position.y),
+              world.getMinHeight(),
+              world.getMaxHeight() - 1);
+      int blockZ = (int) Math.floor(rootLocation.getZ() + position.z);
+
+      if (!world.isChunkLoaded(blockX >> 4, blockZ >> 4)) {
+        continue;
+      }
+
+      Block lightBlock = world.getBlockAt(blockX, blockY, blockZ);
+      int blockLight = lightBlock.getLightFromBlocks();
+      int skyLight = lightBlock.getLightFromSky();
+      PartLightState lightState = cache.lightState();
+      if (lightState.matches(blockLight, skyLight)) {
+        continue;
+      }
+
+      cache.runtime().display().setBrightness(new Display.Brightness(blockLight, skyLight));
+      lightState.set(blockLight, skyLight);
     }
   }
 
@@ -754,12 +825,27 @@ public final class RuntimeModel {
     }
   }
 
+  private static final class PartLightState {
+    private int block = -1;
+    private int sky = -1;
+
+    private boolean matches(int block, int sky) {
+      return this.block == block && this.sky == sky;
+    }
+
+    private void set(int block, int sky) {
+      this.block = block;
+      this.sky = sky;
+    }
+  }
+
   private record PartRenderCache(
       RuntimePart runtime,
       int entityId,
       BoneRenderCache bone,
       Matrix4f localTransform,
       Matrix4f transform,
+      PartLightState lightState,
       NmsAnimationPacketTransport.TransformState packetState) {}
 
   private record HitboxRenderCache(

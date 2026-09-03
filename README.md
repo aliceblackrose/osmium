@@ -88,6 +88,7 @@ render:
   view-range: 64.0
   shadow-radius: 0.0
   shadow-strength: 0.0
+  brightness-override: false
   brightness-block: 15
   brightness-sky: 15
   scale: 1.0
@@ -107,8 +108,9 @@ render:
 | `resource-pack-folder` | Folder where generated resource pack files are written |
 | `auto-generate-pack-on-reload` | Automatically regenerates the pack when Osmium reloads |
 | `render.view-range` | Display entity view range |
-| `render.brightness-block` | Block light brightness for display entities |
-| `render.brightness-sky` | Sky light brightness for display entities |
+| `render.brightness-override` | When `false`, use vanilla world lighting; when `true`, force the block/sky brightness values below |
+| `render.brightness-block` | Fixed block-light override used when `render.brightness-override` is enabled |
+| `render.brightness-sky` | Fixed sky-light override used when `render.brightness-override` is enabled |
 | `render.scale` | Runtime render scale |
 | `render.ground-align` | Aligns rendered models to the ground |
 
