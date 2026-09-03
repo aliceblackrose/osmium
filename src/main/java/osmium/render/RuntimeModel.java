@@ -353,9 +353,7 @@ public final class RuntimeModel {
       boolean shadowCarrier = parts.isEmpty();
       ItemDisplay display =
           world.spawn(
-              spawnOrigin,
-              ItemDisplay.class,
-              entity -> setupPart(entity, part, shadowCarrier));
+              spawnOrigin, ItemDisplay.class, entity -> setupPart(entity, part, shadowCarrier));
       parts.add(
           new PartRenderCache(
               new RuntimePart(part, display),
