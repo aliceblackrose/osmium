@@ -253,6 +253,16 @@ Osmium uses:
 - Interaction entities for model hitboxes
 - Generated resource-pack item models and custom model data
 
+### Architecture roadmap
+
+The planned architecture refactor is documented in:
+
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) - phased implementation roadmap, acceptance criteria, PR sequence, and risk register.
+- [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) - proposed model/compiler/runtime/API/threading architecture and migration strategy.
+- [`docs/ANIMATION_ENGINE.md`](docs/ANIMATION_ENGINE.md) - current compiled animation and 40 Hz packet-rendering design.
+
+The refactor prioritizes an immutable compiled-model pipeline, decomposition of `RuntimeModel`, and a stable `osmium.api` surface before larger feature expansion.
+
 ## Permissions
 
 ```yml
