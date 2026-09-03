@@ -11,7 +11,6 @@ public record PluginSettings(
     int customModelDataStart,
     int packFormat,
     Path blueprintsFolder,
-    Path modelsFolder,
     Path resourcePackFolder,
     boolean autoGeneratePack,
     int interpolationDuration,
@@ -26,7 +25,6 @@ public record PluginSettings(
   private static final String DEFAULT_NAMESPACE = "osmium";
   private static final String DEFAULT_BASE_ITEM = "PAPER";
   private static final String DEFAULT_BLUEPRINTS_FOLDER = "blueprints";
-  private static final String DEFAULT_MODELS_FOLDER = "models";
   private static final String DEFAULT_RESOURCE_PACK_FOLDER = "resource_pack";
 
   private static final int DEFAULT_CUSTOM_MODEL_DATA_START = 100_000;
@@ -54,7 +52,6 @@ public record PluginSettings(
         customModelDataStart(config),
         packFormat(config),
         configuredPath(dataFolder, config, "blueprints-folder", DEFAULT_BLUEPRINTS_FOLDER),
-        configuredPath(dataFolder, config, "models-folder", DEFAULT_MODELS_FOLDER),
         configuredPath(dataFolder, config, "resource-pack-folder", DEFAULT_RESOURCE_PACK_FOLDER),
         config.getBoolean("auto-generate-pack-on-reload", true),
         nonNegativeInt(config, "render.interpolation-duration", DEFAULT_INTERPOLATION_DURATION),
