@@ -46,6 +46,7 @@ public final class RuntimeModel {
   private static final double ACTION_PADDING_SECONDS = 0.05D;
   private static final float MINIMUM_HITBOX_SIZE = 0.1F;
   private static final float MINIMUM_RENDER_SCALE_COMPONENT = 1.0E-4F;
+  private static final float MINIMUM_AUTO_SHADOW_RADIUS = 0.25F;
   private static final int LIGHTING_UPDATE_INTERVAL_TICKS = 2;
 
   private static final String[] IDLE_ANIMATIONS = {IDLE_ANIMATION_NAME, "stand", "standing"};
@@ -349,8 +350,12 @@ public final class RuntimeModel {
     }
 
     for (RenderPart part : blueprint.parts()) {
+      boolean shadowCarrier = parts.isEmpty();
       ItemDisplay display =
-          world.spawn(spawnOrigin, ItemDisplay.class, entity -> setupPart(entity, part));
+          world.spawn(
+              spawnOrigin,
+              ItemDisplay.class,
+              entity -> setupPart(entity, part, shadowCarrier));
       parts.add(
           new PartRenderCache(
               new RuntimePart(part, display),
@@ -363,7 +368,7 @@ public final class RuntimeModel {
     }
   }
 
-  private void setupPart(ItemDisplay display, RenderPart part) {
+  private void setupPart(ItemDisplay display, RenderPart part, boolean shadowCarrier) {
     display.setPersistent(false);
     display.setGravity(false);
     display.setInvulnerable(true);
@@ -375,8 +380,13 @@ public final class RuntimeModel {
     display.setInterpolationDuration(settings.interpolationDuration());
     display.setTeleportDuration(settings.teleportDuration());
     display.setViewRange(settings.viewRange());
-    display.setShadowRadius(settings.shadowRadius());
-    display.setShadowStrength(settings.shadowStrength());
+    if (shadowCarrier && settings.shadowsEnabled()) {
+      display.setShadowRadius(modelShadowRadius());
+      display.setShadowStrength(settings.shadowStrength());
+    } else {
+      display.setShadowRadius(0.0F);
+      display.setShadowStrength(0.0F);
+    }
     if (settings.brightnessOverride()) {
       display.setBrightness(
           new Display.Brightness(settings.brightnessBlock(), settings.brightnessSky()));
@@ -384,6 +394,16 @@ public final class RuntimeModel {
       display.setBrightness(null);
     }
     display.getPersistentDataContainer().set(runtimeModelKey, PersistentDataType.INTEGER, id);
+  }
+
+  private float modelShadowRadius() {
+    if (settings.shadowRadius() > 0.0F) {
+      return settings.shadowRadius();
+    }
+
+    Vec3 modelSize = blueprint.modelSizeBlocks();
+    double footprint = Math.max(modelSize.x(), modelSize.z()) * settings.renderScale();
+    return (float) Math.max(MINIMUM_AUTO_SHADOW_RADIUS, footprint * 0.5D);
   }
 
   private void spawnHitboxes() {
