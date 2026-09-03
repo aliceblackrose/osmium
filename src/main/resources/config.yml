@@ -3,7 +3,6 @@ base-item: PAPER
 custom-model-data-start: 100000
 pack-format: 84
 blueprints-folder: blueprints
-models-folder: models
 resource-pack-folder: resource_pack
 auto-generate-pack-on-reload: true
 render:
