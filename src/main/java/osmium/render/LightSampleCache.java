@@ -24,11 +24,12 @@ final class LightSampleCache {
   }
 
   void beginPass() {
-    generation++;
-    if (generation == 0) {
+    if (generation == Integer.MAX_VALUE) {
       Arrays.fill(generations, 0);
       generation = 1;
+      return;
     }
+    generation++;
   }
 
   int get(long key) {
@@ -53,13 +54,11 @@ final class LightSampleCache {
   }
 
   static long blockKey(int x, int y, int z) {
-    return ((long) x & 0x3FFFFFFL) << 38
-        | ((long) z & 0x3FFFFFFL) << 12
-        | ((long) y & 0xFFFL);
+    return ((long) x & 0x3FFFFFFL) << 38 | ((long) z & 0x3FFFFFFL) << 12 | ((long) y & 0xFFFL);
   }
 
   static int packLight(int block, int sky) {
-    return block & 0xF | (sky & 0xF) << 4;
+    return (block & 0xF) | (sky & 0xF) << 4;
   }
 
   static int blockLight(int packed) {
