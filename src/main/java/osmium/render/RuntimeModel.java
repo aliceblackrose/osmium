@@ -299,7 +299,25 @@ public final class RuntimeModel {
 
       if (baseEntity == null && frozen) {
         if (viewersChanged && hasViewers) {
-          sendAnimationTransforms(animationState.interpolationDurationTicks(), true);
+          CompiledAnimation.Frame animationFrame = animationState.frame();
+          float yawRadians = currentYawRadians;
+          boolean yawChanged = Float.compare(yawRadians, lastRenderedYawRadians) != 0;
+          if (animationState.dirty() || yawChanged) {
+            boolean poseChanged =
+                applyBoneTransform(
+                    blueprint.root(), updateRootTransform(yawRadians), animationFrame, yawChanged);
+            if (poseChanged) {
+              poseGeneration++;
+            }
+            lastRenderedYawRadians = yawRadians;
+            animationState.markRendered();
+          }
+
+          int interpolationDuration = animationState.interpolationDurationTicks();
+          if (animationFrame != null && animationFrame.skipInterpolation()) {
+            interpolationDuration = 0;
+          }
+          sendAnimationTransforms(interpolationDuration, true);
         }
         sentViewerGeneration = currentViewerGeneration;
         return;
@@ -533,8 +551,7 @@ public final class RuntimeModel {
         poseGeneration++;
       }
       for (PartRenderCache cache : parts) {
-        Matrix4f transform =
-            cache.transform.set(cache.bone.transform).mul(cache.localTransform);
+        Matrix4f transform = cache.transform.set(cache.bone.transform).mul(cache.localTransform);
         applyInitialDisplayTransform(cache.runtime.display(), transform);
       }
       lastRenderedYawRadians = initialYawRadians;
@@ -808,7 +825,8 @@ public final class RuntimeModel {
     }
 
     NmsAnimationPacketTransport.ViewerSnapshot next =
-        NmsAnimationPacketTransport.snapshotViewers(parts.getFirst().runtime.display(), hiddenPlayers);
+        NmsAnimationPacketTransport.snapshotViewers(
+            parts.getFirst().runtime.display(), hiddenPlayers);
     synchronized (animationLock) {
       if (!next.playerIds().equals(animationViewers.playerIds())) {
         viewerGeneration++;
@@ -848,9 +866,7 @@ public final class RuntimeModel {
   }
 
   private static void updateBoneTransform(
-      BoneRenderCache cache,
-      Matrix4f parentTransform,
-      BoneTimeline.Sample animationSample) {
+      BoneRenderCache cache, Matrix4f parentTransform, BoneTimeline.Sample animationSample) {
     Vec3 animationPosition = animationSample.position();
     Vec3 scale = animationSample.scale();
 
@@ -902,8 +918,7 @@ public final class RuntimeModel {
   }
 
   private void updateHitboxesIfDirty(World world, Location rootLocation) {
-    if (lastHitboxPoseGeneration == poseGeneration
-        && lastHitboxRootGeneration == rootGeneration) {
+    if (lastHitboxPoseGeneration == poseGeneration && lastHitboxRootGeneration == rootGeneration) {
       return;
     }
     updateHitboxes(world, rootLocation);
@@ -935,9 +950,7 @@ public final class RuntimeModel {
                       Math.abs(size.x() * state.scaleScratch.x),
                       Math.abs(size.z() * state.scaleScratch.z)));
       float height =
-          Math.max(
-              MINIMUM_HITBOX_SIZE,
-              (float) Math.abs(size.y() * state.scaleScratch.y));
+          Math.max(MINIMUM_HITBOX_SIZE, (float) Math.abs(size.y() * state.scaleScratch.y));
 
       Interaction interaction = cache.runtime.interaction();
       if (Math.abs(width - state.width) > HITBOX_SIZE_EPSILON) {
