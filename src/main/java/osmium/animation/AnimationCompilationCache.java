@@ -6,7 +6,9 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import osmium.model.Bone;
 
-/** Shares immutable compiled animation streams between runtime instances using the same skeleton. */
+/**
+ * Shares immutable compiled animation streams between runtime instances using the same skeleton.
+ */
 public final class AnimationCompilationCache {
   private final Map<Bone, Map<Integer, IdentityHashMap<Animation, CompiledAnimation>>> byRoot =
       new WeakHashMap<>();
