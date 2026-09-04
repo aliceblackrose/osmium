@@ -13,6 +13,7 @@ public final class AnimationState {
 
   private Bone rootBone;
   private int compileInterpolationTicks = 1;
+  private AnimationCompilationCache sharedCompilationCache;
   private Animation animation;
   private CompiledAnimation compiledAnimation;
   private int frameIndex;
@@ -23,8 +24,17 @@ public final class AnimationState {
 
   /** Configures the skeleton and maximum client interpolation interval used during compilation. */
   public void configure(Bone rootBone, int interpolationDurationTicks) {
+    configure(rootBone, interpolationDurationTicks, null);
+  }
+
+  /** Configures playback using an optional cache shared by runtime instances of the same model. */
+  public void configure(
+      Bone rootBone,
+      int interpolationDurationTicks,
+      AnimationCompilationCache sharedCompilationCache) {
     this.rootBone = rootBone;
     compileInterpolationTicks = Math.max(0, interpolationDurationTicks);
+    this.sharedCompilationCache = sharedCompilationCache;
     compiledAnimations.clear();
     stop();
   }
@@ -35,10 +45,7 @@ public final class AnimationState {
     }
 
     this.animation = animation;
-    compiledAnimation =
-        compiledAnimations.computeIfAbsent(
-            animation,
-            value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
+    compiledAnimation = compiled(animation);
     frameIndex = 0;
     interpolationDurationTicks = 0;
     complete = compiledAnimation.frames().isEmpty();
@@ -142,6 +149,14 @@ public final class AnimationState {
 
     dirty = true;
     stepsUntilNext = durationToNextFrame();
+  }
+
+  private CompiledAnimation compiled(Animation animation) {
+    if (sharedCompilationCache != null) {
+      return sharedCompilationCache.get(animation, rootBone, compileInterpolationTicks);
+    }
+    return compiledAnimations.computeIfAbsent(
+        animation, value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
   }
 
   private int durationToNextFrame() {
