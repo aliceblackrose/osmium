@@ -29,11 +29,10 @@ It loads `.bbmodel` files, converts model parts into resource-pack item models, 
 2. Stop your Paper server.
 3. Put the JAR into your server's `plugins/` folder.
 4. Start the server once so Osmium can generate its folders and config.
-5. Place your `.bbmodel` files into one of these folders:
+5. Place your `.bbmodel` files into:
 
    ```txt
    plugins/Osmium/blueprints/
-   plugins/Osmium/models/
    ```
 
 6. Run:
@@ -78,7 +77,6 @@ custom-model-data-start: 100000
 pack-format: 84
 
 blueprints-folder: blueprints
-models-folder: models
 resource-pack-folder: resource_pack
 
 auto-generate-pack-on-reload: true
@@ -106,7 +104,6 @@ render:
 | `custom-model-data-start` | First custom model data value assigned to generated model parts |
 | `pack-format` | Resource-pack format written to `pack.mcmeta` |
 | `blueprints-folder` | Folder scanned for `.bbmodel` files |
-| `models-folder` | Additional folder scanned for `.bbmodel` files |
 | `resource-pack-folder` | Folder where generated resource pack files are written |
 | `auto-generate-pack-on-reload` | Automatically regenerates the pack when Osmium reloads |
 | `render.view-range` | Display entity view range |
@@ -128,12 +125,6 @@ Osmium emits the shadow from a single root-anchored display instead of every mod
 
    ```txt
    plugins/Osmium/blueprints/
-   ```
-
-   or:
-
-   ```txt
-   plugins/Osmium/models/
    ```
 
 3. Reload Osmium:
@@ -261,6 +252,16 @@ Osmium uses:
 - Item display entities for visual model parts
 - Interaction entities for model hitboxes
 - Generated resource-pack item models and custom model data
+
+### Architecture roadmap
+
+The planned architecture refactor is documented in:
+
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) - phased implementation roadmap, acceptance criteria, PR sequence, and risk register.
+- [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) - proposed model/compiler/runtime/API/threading architecture and migration strategy.
+- [`docs/ANIMATION_ENGINE.md`](docs/ANIMATION_ENGINE.md) - current compiled animation and 40 Hz packet-rendering design.
+
+The refactor prioritizes an immutable compiled-model pipeline, decomposition of `RuntimeModel`, and a stable `osmium.api` surface before larger feature expansion.
 
 ## Permissions
 

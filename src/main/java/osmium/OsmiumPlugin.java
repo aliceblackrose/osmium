@@ -173,7 +173,6 @@ public final class OsmiumPlugin extends JavaPlugin {
   private void createDataFolders() {
     try {
       Files.createDirectories(settings.blueprintsFolder());
-      Files.createDirectories(settings.modelsFolder());
       Files.createDirectories(settings.resourcePackFolder());
     } catch (IOException exception) {
       getLogger().log(Level.WARNING, "Folder creation failed.", exception);
