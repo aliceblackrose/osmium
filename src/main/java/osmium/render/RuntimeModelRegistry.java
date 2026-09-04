@@ -11,6 +11,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.plugin.Plugin;
 import osmium.PluginSettings;
+import osmium.animation.AnimationCompilationCache;
 import osmium.model.ModelBlueprint;
 
 public final class RuntimeModelRegistry {
@@ -18,6 +19,7 @@ public final class RuntimeModelRegistry {
 
   private final Plugin plugin;
   private final NamespacedKey runtimeModelKey;
+  private final AnimationCompilationCache animationCompilationCache = new AnimationCompilationCache();
   private final Map<Integer, RuntimeModel> models = new LinkedHashMap<>();
   private volatile RuntimeModel[] animationSnapshot = new RuntimeModel[0];
 
@@ -40,7 +42,15 @@ public final class RuntimeModelRegistry {
     int id = nextId++;
     RuntimeModel model =
         new RuntimeModel(
-            id, plugin, runtimeModelKey, settings, blueprint, location, animation, baseEntity);
+            id,
+            plugin,
+            runtimeModelKey,
+            settings,
+            blueprint,
+            location,
+            animation,
+            baseEntity,
+            animationCompilationCache);
     models.put(id, model);
     refreshAnimationSnapshot();
     return model;
