@@ -19,7 +19,8 @@ public final class RuntimeModelRegistry {
 
   private final Plugin plugin;
   private final NamespacedKey runtimeModelKey;
-  private final AnimationCompilationCache animationCompilationCache = new AnimationCompilationCache();
+  private final AnimationCompilationCache animationCompilationCache =
+      new AnimationCompilationCache();
   private final Map<Integer, RuntimeModel> models = new LinkedHashMap<>();
   private volatile RuntimeModel[] animationSnapshot = new RuntimeModel[0];
 
