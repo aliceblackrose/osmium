@@ -56,6 +56,7 @@ public final class ModelBlueprint {
   private final List<RenderPart> parts = new ArrayList<>();
   private final List<HitboxPart> hitboxes = new ArrayList<>();
   private final double minY;
+  private final Vec3 modelSizeBlocks;
 
   public ModelBlueprint(
       String id,
@@ -74,7 +75,9 @@ public final class ModelBlueprint {
     this.cubes = new LinkedHashMap<>(cubes);
     this.textures = new LinkedHashMap<>(textures);
     this.animations = new LinkedHashMap<>(animations);
-    this.minY = computeMinY();
+    ModelBounds bounds = computeBounds();
+    this.minY = bounds.minY();
+    this.modelSizeBlocks = bounds.size();
     collectHitboxes(root);
   }
 
@@ -162,6 +165,10 @@ public final class ModelBlueprint {
     return minY;
   }
 
+  public Vec3 modelSizeBlocks() {
+    return modelSizeBlocks;
+  }
+
   private void collectHitboxes(Bone bone) {
     if (bone.hitbox()) {
       int index = 0;
@@ -195,23 +202,7 @@ public final class ModelBlueprint {
     return textures.values().iterator().next();
   }
 
-  private double computeMinY() {
-    double minimumY = 0;
-    boolean foundCube = false;
-
-    for (Cube cube : renderableCubes()) {
-      double fromY = Transforms.bbLocalToMc(cube.from()).y();
-      double toY = Transforms.bbLocalToMc(cube.to()).y();
-      double cubeMinimumY = Math.min(fromY, toY);
-
-      minimumY = foundCube ? Math.min(minimumY, cubeMinimumY) : cubeMinimumY;
-      foundCube = true;
-    }
-
-    return minimumY;
-  }
-
-  public Vec3 modelSizeBlocks() {
+  private ModelBounds computeBounds() {
     Vec3 minimum = null;
     Vec3 maximum = null;
 
@@ -241,7 +232,10 @@ public final class ModelBlueprint {
                   Math.max(maximum.z(), cubeMaximum.z()));
     }
 
-    return minimum == null ? Vec3.ZERO : maximum.subtract(minimum);
+    if (minimum == null) {
+      return new ModelBounds(0.0D, Vec3.ZERO);
+    }
+    return new ModelBounds(minimum.y(), maximum.subtract(minimum));
   }
 
   private List<Cube> renderableCubes() {
@@ -284,4 +278,6 @@ public final class ModelBlueprint {
 
     return false;
   }
+
+  private record ModelBounds(double minY, Vec3 size) {}
 }
