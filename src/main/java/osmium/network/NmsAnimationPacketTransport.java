@@ -23,6 +23,7 @@ import org.bukkit.entity.Player;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import osmium.math.MatrixDecomposition;
 
 /**
  * Direct vanilla-packet transport for sub-tick display animation updates.
@@ -41,10 +42,15 @@ public final class NmsAnimationPacketTransport {
    * Captures the connections currently tracking a display. Call this from the server thread only.
    */
   public static ViewerSnapshot snapshotViewers(ItemDisplay display, Set<UUID> hiddenPlayers) {
-    Set<UUID> ids = new HashSet<>();
-    List<ServerGamePacketListenerImpl> connections = new ArrayList<>();
+    Set<Player> trackedPlayers = display.getTrackedBy();
+    if (trackedPlayers.isEmpty()) {
+      return ViewerSnapshot.EMPTY;
+    }
 
-    for (Player player : display.getTrackedBy()) {
+    Set<UUID> ids = new HashSet<>(trackedPlayers.size());
+    List<ServerGamePacketListenerImpl> connections = new ArrayList<>(trackedPlayers.size());
+
+    for (Player player : trackedPlayers) {
       UUID playerId = player.getUniqueId();
       if (hiddenPlayers.contains(playerId)) {
         continue;
@@ -54,7 +60,10 @@ public final class NmsAnimationPacketTransport {
       connections.add(((CraftPlayer) player).getHandle().connection);
     }
 
-    return new ViewerSnapshot(Set.copyOf(ids), List.copyOf(connections));
+    if (connections.isEmpty()) {
+      return ViewerSnapshot.EMPTY;
+    }
+    return new ViewerSnapshot(ids, connections);
   }
 
   public static Batch batch() {
@@ -68,6 +77,10 @@ public final class NmsAnimationPacketTransport {
     public ViewerSnapshot {
       playerIds = Set.copyOf(playerIds);
       connections = List.copyOf(connections);
+    }
+
+    public boolean hasViewers() {
+      return !connections.isEmpty();
     }
   }
 
@@ -95,7 +108,7 @@ public final class NmsAnimationPacketTransport {
     }
 
     public void send(ViewerSnapshot viewers) {
-      if (packets.isEmpty() || viewers.connections().isEmpty()) {
+      if (packets.isEmpty() || !viewers.hasViewers()) {
         return;
       }
 
@@ -115,15 +128,16 @@ public final class NmsAnimationPacketTransport {
     private final Vector3f scale = new Vector3f(1.0F, 1.0F, 1.0F);
     private final Quaternionf leftRotation = new Quaternionf();
     private final Quaternionf rightRotation = new Quaternionf();
+
+    private final Vector3f nextTranslation = new Vector3f();
+    private final Vector3f nextScale = new Vector3f(1.0F, 1.0F, 1.0F);
+    private final Quaternionf nextLeft = new Quaternionf();
+    private final Quaternionf nextRight = new Quaternionf();
     private boolean initialized;
 
     private ClientboundSetEntityDataPacket createPacket(
         int entityId, Matrix4f matrix, int interpolationDurationTicks, boolean force) {
-      Transformation transformation = new Transformation(new Matrix4f(matrix));
-      Vector3f nextTranslation = new Vector3f(transformation.translation());
-      Vector3f nextScale = new Vector3f(transformation.scale());
-      Quaternionf nextLeft = new Quaternionf(transformation.leftRotation()).normalize();
-      Quaternionf nextRight = new Quaternionf(transformation.rightRotation()).normalize();
+      decompose(matrix);
 
       if (initialized) {
         keepSameHemisphere(nextLeft, leftRotation);
@@ -148,17 +162,25 @@ public final class NmsAnimationPacketTransport {
           SynchedEntityData.DataValue.create(
               ACCESSORS.interpolationDuration(), Math.max(0, interpolationDurationTicks)));
 
+      // Packet data may be encoded after this render pass, so values inserted into the packet must
+      // not share the mutable scratch objects used by later frames.
       if (force || translationChanged) {
-        values.add(SynchedEntityData.DataValue.create(ACCESSORS.translation(), nextTranslation));
+        values.add(
+            SynchedEntityData.DataValue.create(
+                ACCESSORS.translation(), new Vector3f(nextTranslation)));
       }
       if (force || scaleChanged) {
-        values.add(SynchedEntityData.DataValue.create(ACCESSORS.scale(), nextScale));
+        values.add(SynchedEntityData.DataValue.create(ACCESSORS.scale(), new Vector3f(nextScale)));
       }
       if (force || leftChanged) {
-        values.add(SynchedEntityData.DataValue.create(ACCESSORS.leftRotation(), nextLeft));
+        values.add(
+            SynchedEntityData.DataValue.create(
+                ACCESSORS.leftRotation(), new Quaternionf(nextLeft)));
       }
       if (force || rightChanged) {
-        values.add(SynchedEntityData.DataValue.create(ACCESSORS.rightRotation(), nextRight));
+        values.add(
+            SynchedEntityData.DataValue.create(
+                ACCESSORS.rightRotation(), new Quaternionf(nextRight)));
       }
 
       translation.set(nextTranslation);
@@ -168,6 +190,20 @@ public final class NmsAnimationPacketTransport {
       initialized = true;
 
       return new ClientboundSetEntityDataPacket(entityId, values);
+    }
+
+    private void decompose(Matrix4f matrix) {
+      if (MatrixDecomposition.canUseDirectTrs(matrix)) {
+        MatrixDecomposition.directTrs(matrix, nextTranslation, nextLeft, nextScale);
+        nextRight.identity();
+        return;
+      }
+
+      Transformation transformation = new Transformation(new Matrix4f(matrix));
+      nextTranslation.set(transformation.translation());
+      nextScale.set(transformation.scale());
+      nextLeft.set(transformation.leftRotation()).normalize();
+      nextRight.set(transformation.rightRotation()).normalize();
     }
   }
 
