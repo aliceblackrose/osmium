@@ -27,9 +27,7 @@ public final class AnimationState {
     configure(rootBone, interpolationDurationTicks, null);
   }
 
-  /**
-   * Configures playback using an optional cache shared by runtime instances of the same model.
-   */
+  /** Configures playback using an optional cache shared by runtime instances of the same model. */
   public void configure(
       Bone rootBone,
       int interpolationDurationTicks,
@@ -158,8 +156,7 @@ public final class AnimationState {
       return sharedCompilationCache.get(animation, rootBone, compileInterpolationTicks);
     }
     return compiledAnimations.computeIfAbsent(
-        animation,
-        value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
+        animation, value -> AnimationCompiler.compile(value, rootBone, compileInterpolationTicks));
   }
 
   private int durationToNextFrame() {
