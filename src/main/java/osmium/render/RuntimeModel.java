@@ -103,11 +103,13 @@ public final class RuntimeModel {
   private long viewerGeneration;
   private boolean manualAnimation;
   private boolean deathAnimationStarted;
+  private boolean lightingNeedsRefresh = true;
   private long actionEndsAtNanos;
   private float lastRenderedYawRadians = Float.NaN;
   private long sentViewerGeneration = -1L;
   private long poseGeneration;
   private long rootGeneration;
+  private long lastTeleportedRootGeneration = -1L;
   private long lastHitboxPoseGeneration = -1L;
   private long lastHitboxRootGeneration = -1L;
   private long lastLightingPoseGeneration = -1L;
@@ -586,7 +588,9 @@ public final class RuntimeModel {
   }
 
   private void updateAnimationController(long nowNanos) {
-    if (baseEntity == null || manualAnimation) {
+    if (baseEntity == null
+        || manualAnimation
+        || (!animationViewers.hasViewers() && hitboxes.isEmpty())) {
       return;
     }
 
@@ -662,6 +666,12 @@ public final class RuntimeModel {
   }
 
   private void updateMainThreadVisuals() {
+    boolean viewerRefreshDue = viewerUpdateDue();
+    boolean hadViewers = animationViewers.hasViewers();
+    if (!hadViewers && hitboxes.isEmpty() && !viewerRefreshDue) {
+      return;
+    }
+
     Location currentLocation;
     float yawRadians;
 
@@ -681,11 +691,12 @@ public final class RuntimeModel {
     }
 
     currentYawRadians = yawRadians;
-    boolean rootMoved = updateRootState(currentLocation);
-    if (rootMoved) {
+    updateRootState(currentLocation);
+    if ((hadViewers || viewerRefreshDue) && lastTeleportedRootGeneration != rootGeneration) {
       teleportParts(currentLocation);
+      lastTeleportedRootGeneration = rootGeneration;
     }
-    if (viewerUpdateDue()) {
+    if (viewerRefreshDue) {
       refreshAnimationViewers();
     }
 
@@ -747,11 +758,18 @@ public final class RuntimeModel {
   }
 
   private void updateScheduledLighting(World world, Location rootLocation) {
-    if (settings.brightnessOverride() || !lightingUpdateDue()) {
+    if (settings.brightnessOverride()) {
+      return;
+    }
+    if (!animationViewers.hasViewers()) {
+      lightingNeedsRefresh = true;
+      return;
+    }
+    if (!lightingNeedsRefresh && !lightingUpdateDue()) {
       return;
     }
 
-    boolean forceRefresh = fullLightingRefreshDue();
+    boolean forceRefresh = lightingNeedsRefresh || fullLightingRefreshDue();
     if (!forceRefresh
         && lastLightingPoseGeneration == poseGeneration
         && lastLightingRootGeneration == rootGeneration) {
@@ -759,6 +777,7 @@ public final class RuntimeModel {
     }
 
     updatePartLighting(world, rootLocation, forceRefresh);
+    lightingNeedsRefresh = false;
     lastLightingPoseGeneration = poseGeneration;
     lastLightingRootGeneration = rootGeneration;
   }
