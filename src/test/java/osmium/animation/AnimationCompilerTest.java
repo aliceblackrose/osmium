@@ -126,6 +126,50 @@ final class AnimationCompilerTest {
         first.pose(root.name()).position().x(), seam.pose(root.name()).position().x(), EPSILON);
   }
 
+  @Test
+  void opposingParentAndChildRotationsDoNotCancelSubdivision() {
+    Bone root = bone("root", Vec3.ZERO);
+    Bone child =
+        new Bone("child", "child", "child", Vec3.ZERO, Vec3.ZERO, new Vec3(0, 90, 0), true);
+    root.addChild(child);
+    Animation animation =
+        new Animation(
+            "opposing",
+            0.2,
+            AnimationLoopMode.ONCE,
+            Map.of(root.name(), rotationTimeline(60), child.name(), rotationTimeline(-60)));
+
+    CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 0);
+
+    assertEquals(9, compiled.frames().size());
+    assertEquals(30.0, frameAt(compiled, 0.1).pose(root.name()).rotation().x(), EPSILON);
+    assertEquals(-30.0, frameAt(compiled, 0.1).pose(child.name()).rotation().x(), EPSILON);
+  }
+
+  @Test
+  void loopingFullTurnRetainsIntermediateRotationPoses() {
+    Bone root = bone("root", Vec3.ZERO);
+    Animation animation =
+        new Animation(
+            "spin", 0.2, AnimationLoopMode.LOOP, Map.of(root.name(), rotationTimeline(360)));
+
+    CompiledAnimation compiled = AnimationCompiler.compile(animation, root, 0);
+
+    assertEquals(9, compiled.frames().size());
+    assertEquals(180.0, frameAt(compiled, 0.1).pose(root.name()).rotation().x(), EPSILON);
+    assertEquals(0.0, frameAt(compiled, 0.2).pose(root.name()).rotation().x(), EPSILON);
+  }
+
+  @Test
+  void smallRotationDoesNotAddUnnecessaryPacketFrames() {
+    Bone root = bone("root", Vec3.ZERO);
+    Animation animation =
+        new Animation(
+            "small", 0.2, AnimationLoopMode.ONCE, Map.of(root.name(), rotationTimeline(45)));
+
+    assertEquals(2, AnimationCompiler.compile(animation, root, 0).frames().size());
+  }
+
   private static BoneTimeline rotationTimeline(double endDegrees) {
     BoneTimeline timeline = new BoneTimeline();
     timeline.rotation().add(new Keyframe(0.0, Vec3.ZERO, Interpolation.LINEAR));

@@ -6,7 +6,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /** Chooses the stable display representation for a local model transform. */
-final class DisplayTransform {
+public final class DisplayTransform {
   private static final float SHEAR_EPSILON = 1.0E-4F;
   private static final float MINIMUM_BASIS_LENGTH_SQUARED = 1.0E-12F;
 
@@ -17,7 +17,7 @@ final class DisplayTransform {
    * decomposition. SVD is only necessary when inherited non-uniform scale actually introduces
    * shear.
    */
-  static boolean canUseDirectTrs(Matrix4f matrix) {
+  public static boolean canUseDirectTrs(Matrix4f matrix) {
     float xLengthSquared =
         matrix.m00() * matrix.m00() + matrix.m01() * matrix.m01() + matrix.m02() * matrix.m02();
     float yLengthSquared =

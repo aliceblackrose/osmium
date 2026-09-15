@@ -173,7 +173,7 @@ public final class AnimationCompiler {
       double nextTime,
       double runtimeLength) {
     return maximumHierarchicalRotation(
-        animation, rootBone, previousTime, nextTime, runtimeLength, Vec3.ZERO, 0.0D);
+        animation, rootBone, previousTime, nextTime, runtimeLength, 0.0D, 0.0D);
   }
 
   private static double maximumHierarchicalRotation(
@@ -182,22 +182,30 @@ public final class AnimationCompiler {
       double previousTime,
       double nextTime,
       double runtimeLength,
-      Vec3 parentDelta,
+      double parentTravel,
       double maximum) {
     BoneTimeline timeline = animation.timelines().get(bone.name());
-    Vec3 localDelta = Vec3.ZERO;
-    if (timeline != null && timeline.rotation().frames().size() >= 2) {
+    double localTravel = 0.0D;
+    if (timeline != null && timeline.rotation().frameCount() >= 2) {
       double previousSampleTime = sourceTime(animation, previousTime, runtimeLength);
-      double nextSampleTime = sourceTime(animation, nextTime, runtimeLength);
+      // Measure the authored approach to the seam before the terminal pose wraps to zero.
+      // Otherwise a full turn (0 -> 360 degrees) appears to have no angular travel.
+      double nextSampleTime =
+          animation.loop() && Math.abs(nextTime - runtimeLength) <= EPSILON
+              ? Math.nextDown(animation.length())
+              : sourceTime(animation, nextTime, runtimeLength);
       Vec3 previousRotation =
           timeline.rotation().sample(previousSampleTime, animation.loop(), animation.length());
       Vec3 nextRotation =
           timeline.rotation().sample(nextSampleTime, animation.loop(), animation.length());
-      localDelta = nextRotation.subtract(previousRotation);
+      Vec3 delta = nextRotation.subtract(previousRotation);
+      // Euler axes and parent/child rotations are composed in different coordinate frames.
+      // Sum absolute angular travel: vector addition can incorrectly cancel real motion.
+      localTravel = Math.abs(delta.x()) + Math.abs(delta.y()) + Math.abs(delta.z());
     }
 
-    Vec3 accumulated = parentDelta.add(localDelta);
-    maximum = Math.max(maximum, vectorLength(accumulated));
+    double accumulated = parentTravel + localTravel;
+    maximum = Math.max(maximum, accumulated);
     for (Bone child : bone.children()) {
       maximum =
           Math.max(
@@ -213,10 +221,6 @@ public final class AnimationCompiler {
       return 0.0D;
     }
     return Math.min(runtimeTime, animation.length());
-  }
-
-  private static double vectorLength(Vec3 vector) {
-    return Math.sqrt(vector.x() * vector.x() + vector.y() * vector.y() + vector.z() * vector.z());
   }
 
   private static int stepsBetween(double previous, double next) {

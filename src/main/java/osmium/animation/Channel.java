@@ -25,6 +25,11 @@ public final class Channel {
     return List.copyOf(frames);
   }
 
+  /** Returns the keyframe count without allocating a snapshot. */
+  public int frameCount() {
+    return frames.size();
+  }
+
   public Vec3 sample(double time) {
     return sample(time, false, 0);
   }
@@ -57,15 +62,14 @@ public final class Channel {
       return firstFrame.pre();
     }
 
-    for (int index = 1; index < frames.size(); index++) {
+    int index = nextFrameIndex(time);
+    if (index < frames.size()) {
       Keyframe nextFrame = frames.get(index);
       if (approximatelyEqual(time, nextFrame.time())) {
         return nextFrame.pre();
       }
-      if (time < nextFrame.time()) {
-        return sampleBetween(
-            index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
-      }
+      return sampleBetween(
+          index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), false);
     }
 
     return frames.getLast().post();
@@ -84,19 +88,35 @@ public final class Channel {
           frames.size() - 1, 0, time, lastFrame.time() - animationLength, firstFrame.time(), true);
     }
 
-    for (int index = 1; index < frames.size(); index++) {
+    int index = nextFrameIndex(time);
+    if (index < frames.size()) {
       Keyframe nextFrame = frames.get(index);
       if (approximatelyEqual(time, nextFrame.time())) {
         return nextFrame.pre();
       }
-      if (time < nextFrame.time()) {
-        return sampleBetween(
-            index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), true);
-      }
+      return sampleBetween(
+          index - 1, index, time, frames.get(index - 1).time(), nextFrame.time(), true);
     }
 
     return sampleBetween(
         frames.size() - 1, 0, time, lastFrame.time(), firstFrame.time() + animationLength, true);
+  }
+
+  // Find the earliest incoming frame, including the exact-keyframe tolerance. Keeping
+  // the first match preserves authored pre/post values for duplicate timestamps.
+  private int nextFrameIndex(double time) {
+    int low = 1;
+    int high = frames.size();
+    while (low < high) {
+      int middle = (low + high) >>> 1;
+      double frameTime = frames.get(middle).time();
+      if (time < frameTime || approximatelyEqual(time, frameTime)) {
+        high = middle;
+      } else {
+        low = middle + 1;
+      }
+    }
+    return low;
   }
 
   private int insertionIndex(Keyframe frame) {

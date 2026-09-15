@@ -8,7 +8,7 @@ Osmium's animation runtime follows the same high-level architecture used by mode
 2. Quantize authored times to the packet renderer's 25 ms transport cadence.
 3. Build one shared frame timeline across every animated bone and channel.
 4. Insert explicit hold frames immediately before `step` transitions.
-5. Densify intervals whose accumulated parent/child rotation exceeds 90 degrees, using every 25 ms transport slot available.
+5. Densify intervals whose sum of absolute Euler-angle changes along a bone ancestry exceeds 90 degrees, using every 25 ms transport slot available. This conservative bound avoids cancellation between different local axes. Measure the authored approach to a loop seam before wrapping its terminal pose so full turns retain intermediate frames.
 6. Evaluate position, rotation, and scale curves once for each compiled frame.
 7. Cache the compiled animation for subsequent plays on the runtime model.
 8. During playback, send a new local display transformation only when the compiled target frame changes, model yaw changes, or a new viewer begins tracking the model.
@@ -19,7 +19,7 @@ Osmium's animation runtime follows the same high-level architecture used by mode
 
 The old engine searched keyframes and evaluated interpolation curves every server tick, then rewrote every display transformation every tick. That coupled animation evaluation, entity movement, and Minecraft's client interpolation into one feedback loop.
 
-The compiled engine separates those responsibilities. Curve semantics belong to compilation; frame scheduling belongs to playback; entity translation belongs to root transport; and Minecraft receives discrete target poses with explicit durations.
+The compiled engine separates those responsibilities. Channel sampling uses binary search over sorted keyframe times, preserving incoming/outgoing values and exact-keyframe tolerance. Curve semantics belong to compilation; frame scheduling belongs to playback; entity translation belongs to root transport; and Minecraft receives discrete target poses with explicit durations.
 
 ## 40 Hz direct packet transport
 
@@ -27,7 +27,7 @@ The animation transport is intentionally split from Bukkit's 20 TPS entity tick.
 
 The packet renderer does not call Bukkit APIs and does not mutate the server-side `ItemDisplay` or its `SynchedEntityData`. The main server thread owns spawning, removal, teleports, hitboxes, animation-controller decisions, and viewer discovery. It publishes only cached yaw and tracking snapshots to the renderer. This keeps sub-tick rendering from turning Bukkit entity access into an unsafe asynchronous operation.
 
-Each render part owns an independent packet-side transformation cache. Full matrices are decomposed with Minecraft's own `com.mojang.math.Transformation`, including right rotation when inherited scale introduces a non-trivial decomposition. Quaternion signs are kept on the same hemisphere as the previous packet so mathematically equivalent `q`/`-q` representations cannot create an interpolation flip.
+Each render part owns an independent packet-side transformation cache. Ordinary translation/rotation/positive-scale matrices use the same direct transform extraction as initial entity spawning, avoiding generic decomposition on each update. Sheared, reflected, and degenerate matrices retain Minecraft's own `com.mojang.math.Transformation` decomposition, including right rotation when inherited scale requires it. Quaternion signs are kept on the same hemisphere as the previous packet so mathematically equivalent `q`/`-q` representations cannot create an interpolation flip.
 
 When a viewer starts tracking a model, the renderer force-sends the complete current transformation state. This is necessary because the authoritative Bukkit entity intentionally keeps only an initial transformation baseline; subsequent animation poses exist only in viewer packets.
 
