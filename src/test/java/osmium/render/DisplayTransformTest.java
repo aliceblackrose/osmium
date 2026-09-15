@@ -38,4 +38,26 @@ final class DisplayTransformTest {
 
     assertFalse(DisplayTransform.canUseDirectTrs(reflected));
   }
+
+  @Test
+  void directTrsReconstructsRotatedNonUniformScale() {
+    Matrix4f matrix =
+        new Matrix4f().translate(-2, 3, 4).rotateXYZ(1.2F, -2.4F, 0.7F).scale(0.25F, 2, 5);
+
+    assertTrue(DisplayTransform.canUseDirectTrs(matrix));
+    Transformation transform = DisplayTransform.directTrs(matrix);
+    Matrix4f reconstructed =
+        new Matrix4f()
+            .translate(transform.getTranslation())
+            .rotate(transform.getLeftRotation())
+            .scale(transform.getScale())
+            .rotate(transform.getRightRotation());
+
+    assertTrue(matrix.equals(reconstructed, 1.0E-5F));
+  }
+
+  @Test
+  void collapsedAxisKeepsMatrixPath() {
+    assertFalse(DisplayTransform.canUseDirectTrs(new Matrix4f().scale(1, 0, 1)));
+  }
 }

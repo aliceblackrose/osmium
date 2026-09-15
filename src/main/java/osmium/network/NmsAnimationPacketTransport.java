@@ -23,6 +23,7 @@ import org.bukkit.entity.Player;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import osmium.render.DisplayTransform;
 
 /**
  * Direct vanilla-packet transport for sub-tick display animation updates.
@@ -119,11 +120,22 @@ public final class NmsAnimationPacketTransport {
 
     private ClientboundSetEntityDataPacket createPacket(
         int entityId, Matrix4f matrix, int interpolationDurationTicks, boolean force) {
-      Transformation transformation = new Transformation(new Matrix4f(matrix));
-      Vector3f nextTranslation = new Vector3f(transformation.translation());
-      Vector3f nextScale = new Vector3f(transformation.scale());
-      Quaternionf nextLeft = new Quaternionf(transformation.leftRotation()).normalize();
-      Quaternionf nextRight = new Quaternionf(transformation.rightRotation()).normalize();
+      Vector3f nextTranslation;
+      Vector3f nextScale;
+      Quaternionf nextLeft;
+      Quaternionf nextRight;
+      if (DisplayTransform.canUseDirectTrs(matrix)) {
+        nextTranslation = matrix.getTranslation(new Vector3f());
+        nextScale = matrix.getScale(new Vector3f());
+        nextLeft = matrix.getUnnormalizedRotation(new Quaternionf()).normalize();
+        nextRight = new Quaternionf();
+      } else {
+        Transformation transformation = new Transformation(new Matrix4f(matrix));
+        nextTranslation = new Vector3f(transformation.translation());
+        nextScale = new Vector3f(transformation.scale());
+        nextLeft = new Quaternionf(transformation.leftRotation()).normalize();
+        nextRight = new Quaternionf(transformation.rightRotation()).normalize();
+      }
 
       if (initialized) {
         keepSameHemisphere(nextLeft, leftRotation);
